@@ -1,0 +1,176 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-up: var(--up);
+  --color-up-foreground: var(--up-foreground);
+  --color-down: var(--down);
+  --color-down-foreground: var(--down-foreground);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+}
+
+/* SHEAR — premium dark quant-fintech theme. Dark by default. */
+:root {
+  --radius: 0.75rem;
+
+  --background: oklch(0.16 0.012 248);
+  --foreground: oklch(0.97 0.005 240);
+
+  --card: oklch(0.205 0.014 248);
+  --card-foreground: oklch(0.97 0.005 240);
+  --popover: oklch(0.205 0.014 248);
+  --popover-foreground: oklch(0.97 0.005 240);
+
+  --primary: oklch(0.82 0.13 195);
+  --primary-foreground: oklch(0.18 0.02 220);
+  --secondary: oklch(0.27 0.018 248);
+  --secondary-foreground: oklch(0.96 0.005 240);
+  --muted: oklch(0.25 0.015 248);
+  --muted-foreground: oklch(0.68 0.018 245);
+  --accent: oklch(0.3 0.03 220);
+  --accent-foreground: oklch(0.97 0.005 240);
+  --destructive: oklch(0.62 0.21 18);
+
+  --border: oklch(0.3 0.016 248);
+  --input: oklch(0.3 0.016 248);
+  --ring: oklch(0.82 0.13 195);
+
+  /* trading semantics */
+  --up: oklch(0.78 0.16 158);
+  --up-foreground: oklch(0.16 0.02 160);
+  --down: oklch(0.66 0.2 18);
+  --down-foreground: oklch(0.98 0 0);
+  --brand: oklch(0.82 0.13 195);
+  --brand-foreground: oklch(0.18 0.02 220);
+
+  --chart-1: oklch(0.82 0.13 195);
+  --chart-2: oklch(0.78 0.16 158);
+  --chart-3: oklch(0.7 0.15 50);
+  --chart-4: oklch(0.66 0.2 18);
+  --chart-5: oklch(0.72 0.12 280);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv01", "tnum";
+  }
+  html {
+    @apply font-sans;
+    scrollbar-gutter: stable;
+  }
+}
+
+@layer utilities {
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  .text-up {
+    color: var(--up);
+  }
+  .text-down {
+    color: var(--down);
+  }
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, color-mix(in oklch, var(--border) 55%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklch, var(--border) 55%, transparent) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+  .bg-dots {
+    background-image: radial-gradient(color-mix(in oklch, var(--border) 80%, transparent) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  .glow-brand {
+    box-shadow: 0 0 0 1px color-mix(in oklch, var(--brand) 30%, transparent),
+      0 0 40px -8px color-mix(in oklch, var(--brand) 45%, transparent);
+  }
+  .text-gradient-brand {
+    background: linear-gradient(100deg, var(--foreground), var(--brand));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .glass {
+    background: color-mix(in oklch, var(--card) 70%, transparent);
+    backdrop-filter: blur(12px);
+  }
+  .radial-fade {
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, black 40%, transparent 100%);
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, black 40%, transparent 100%);
+  }
+}
+
+@keyframes ticker-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.animate-ticker { animation: ticker-pulse 1.6s ease-in-out infinite; }
+
+/* Theme the Solana wallet-adapter modal to match SHEAR's dark UI */
+.wallet-adapter-modal-wrapper {
+  background: var(--popover) !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl) !important;
+  box-shadow: 0 24px 80px -20px rgba(0, 0, 0, 0.7) !important;
+  font-family: var(--font-geist-sans), sans-serif !important;
+}
+.wallet-adapter-modal-title { color: var(--foreground) !important; }
+.wallet-adapter-modal-button-close { background: var(--secondary) !important; }
+.wallet-adapter-modal-button-close svg { fill: var(--muted-foreground); }
+.wallet-adapter-modal-list .wallet-adapter-button {
+  background: var(--secondary) !important;
+  color: var(--foreground) !important;
+  border-radius: var(--radius-md) !important;
+  font-weight: 500;
+}
+.wallet-adapter-modal-list .wallet-adapter-button:hover {
+  background: var(--accent) !important;
+}
+.wallet-adapter-button-trigger { background: var(--primary) !important; color: var(--primary-foreground) !important; }
+.wallet-adapter-modal-list-more { color: var(--muted-foreground) !important; }

@@ -1,0 +1,91 @@
+// SHEAR data store. Holds: ratio OHLC candles for the chart (src/lib/server/candles.ts), the
+// durable trade history + wallet registry (src/lib/server/trades.ts). Live market/pool/position
+// state is intentionally NOT stored here — it's authoritative on-chain. Postgres runs locally via
+// docker-compose.yml; served through /api routes.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Candle {
+  market     String
+  resolution Int
+  time       Int
+  open       Float
+  high       Float
+  low        Float
+  close      Float
+
+  @@id([market, resolution, time])
+  @@map("candles")
+}
+
+// One row per closed/liquidated trade. `id` is generated client-side and is deterministic for the
+// same close, so re-POSTing (optimistic localStorage + retries) upserts instead of duplicating.
+model Trade {
+  owner       String // wallet base58
+  id          String // client-generated, idempotent
+  symbol      String  @default("SOL-ETH")
+  side        String // "long" | "short"
+  notional    Float
+  collateral  Float
+  leverage    Float
+  entryRatio  Float
+  exitRatio   Float
+  realizedPnl Float
+  status      String // "closed" | "liquidated"
+  signature   String? // settle tx signature, when available
+  closedTs    Int // unix seconds
+  createdAt   DateTime @default(now())
+
+  @@id([owner, id])
+  @@index([owner, closedTs])
+  @@index([closedTs]) // global recent-activity feed
+  @@map("trades")
+}
+
+// Append-only activity log of every successful trade action (open / close / liquidated), keyed by
+// the tx signature so re-POSTs are idempotent. Powers the persistent activity feed and "all
+// transactions" history; closes also produce a Trade row (above) for PnL stats.
+model TradeEvent {
+  id          String   @id // tx signature, or composite fallback when none
+  owner       String // wallet base58
+  kind        String // "open" | "close" | "liquidated"
+  symbol      String   @default("SOL-ETH")
+  side        String // "long" | "short"
+  notional    Float
+  collateral  Float
+  leverage    Float
+  ratio       Float // entry ratio for open, exit ratio for close
+  realizedPnl Float? // close / liquidated only
+  signature   String?
+  ts          Int // unix seconds
+  createdAt   DateTime @default(now())
+
+  @@index([owner, ts])
+  @@index([ts]) // global activity feed
+  @@map("trade_events")
+}
+
+// Wallet registry + aggregate stats. The address row is created on a wallet's first action (open or
+// close); the stat fields are recomputed from `Trade` on every close (so they stay correct even if a
+// trade is re-POSTed). Powers instant Profile loads and a future leaderboard.
+model Trader {
+  address      String   @id // wallet base58
+  trades       Int      @default(0)
+  wins         Int      @default(0)
+  losses       Int      @default(0)
+  liquidations Int      @default(0)
+  realizedPnl  Float    @default(0)
+  volume       Float    @default(0)
+  firstTradeTs Int?
+  lastTradeTs  Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("traders")
+}

@@ -1,0 +1,27 @@
+[package]
+name = "shear"
+version = "0.1.0"
+edition = "2021"
+description = "SHEAR — relative-value (ratio) perpetuals on MagicBlock Ephemeral Rollups."
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "shear"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+# Path A (magicblock-integration.md §0). If `cargo build-sbf` won't resolve, see SPIKE.md
+# for fallbacks B (anchor 0.32.1 + ERS anchor-compat + pyth 1.2.0) and C (anchor 0.31.1 + ERS 0.2.x + pyth 0.6.0).
+anchor-lang = { version = "1.0.2", features = ["init-if-needed"] }
+anchor-spl = "1.0.2"
+ephemeral-rollups-sdk = { version = "0.14.3", features = ["anchor"] }
+magicblock-magic-program-api = { version = "0.10.1", default-features = false }
+bincode = "1.3"
+session-keys = { version = "3.1.1", features = ["no-entrypoint"] }
+shear-math = { path = "../../crates/shear-math" }

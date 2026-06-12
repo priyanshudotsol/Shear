@@ -1,0 +1,11 @@
+# SHEAR Anchor workspace (Path A — see magicblock-integration.md §0).
+# `programs/shear-math` is EXCLUDED: it's a zero-dep crate with its own [workspace]
+# so it builds + tests offline (`cd programs/shear-math && cargo test`). The Anchor
+# program depends on it by path.
+[workspace]
+members = ["programs/shear", "programs/mock-oracle"]
+exclude = ["crates/shear-math"]
+resolver = "2"
+
+[profile.release]
+overflow-checks = true     # MANDATORY — fixed-point math must trap overflow

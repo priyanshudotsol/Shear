@@ -1,0 +1,25 @@
+# Local Postgres for SHEAR's candle store (and any future DB-backed data).
+# Bring up:   docker compose up -d
+# Tear down:  docker compose down          (add -v to also wipe the data volume)
+# Connect:    postgresql://shear:shear@localhost:5432/shear
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: shear-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: shear
+      POSTGRES_PASSWORD: shear
+      POSTGRES_DB: shear
+    ports:
+      - "5432:5432"
+    volumes:
+      - shear-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shear -d shear"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  shear-pgdata:

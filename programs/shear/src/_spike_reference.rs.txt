@@ -1,0 +1,225 @@
+//! SHEAR — walking-skeleton spike.
+//!
+//! Validates the full MagicBlock integration on ONE PDA, end to end:
+//!   initialize (L1) → delegate (L1→ER) → increment (mutate in ER)
+//!   → store_ratio (read TWO oracle feeds in the ER, divide via shear-math)
+//!   → schedule_crank (ScheduleTask fires `increment` every interval)
+//!   → commit / undelegate (ER→L1).
+//!
+//! Every call mirrors a verbatim pattern confirmed in ../../magicblock-engine-examples
+//! (anchor-counter, crank-counter, session-keys) and the real-time-pricing-oracle README.
+//! This is a SKELETON to prove the toolchain + integration compile and run — not product code.
+//! Build with network: `cargo build-sbf` (or `anchor build`). See SPIKE.md.
+
+use anchor_lang::prelude::*;
+use anchor_lang::solana_program::{
+    instruction::{AccountMeta, Instruction},
+    program::invoke_signed,
+};
+use ephemeral_rollups_sdk::anchor::{commit, delegate, ephemeral};
+use ephemeral_rollups_sdk::consts::MAGIC_PROGRAM_ID;
+use ephemeral_rollups_sdk::cpi::DelegateConfig;
+use ephemeral_rollups_sdk::ephem::MagicIntentBundleBuilder;
+use magicblock_magic_program_api::{args::ScheduleTaskArgs, instruction::MagicBlockInstruction};
+
+pub mod vendored_pyth;
+use vendored_pyth::PriceUpdateV2;
+
+declare_id!("SHEARSpike1111111111111111111111111111111111"); // placeholder — `anchor keys sync`
+
+pub const PROBE_SEED: &[u8] = b"probe";
+
+#[ephemeral]
+#[program]
+pub mod shear {
+    use super::*;
+
+    /// L1: create the probe PDA.
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
+        let p = &mut ctx.accounts.probe;
+        p.authority = ctx.accounts.payer.key();
+        p.count = 0;
+        p.last_ratio = 0;
+        p.bump = ctx.bumps.probe;
+        Ok(())
+    }
+
+    /// L1: delegate the probe PDA to the ER. Pin a validator (pass it as the first
+    /// remaining account) so all SHEAR accounts share one validator (co-delegation rule).
+    pub fn delegate(ctx: Context<DelegateProbe>) -> Result<()> {
+        ctx.accounts.delegate_probe(
+            &ctx.accounts.payer,
+            &[PROBE_SEED, ctx.accounts.payer.key().as_ref()],
+            DelegateConfig {
+                commit_frequency_ms: 30_000,
+                validator: ctx.remaining_accounts.first().map(|a| a.key()),
+            },
+        )?;
+        Ok(())
+    }
+
+    /// ER: mutate state. No signer — so the crank can call it with only [probe]
+    /// (matches crank-counter's `Increment`).
+    pub fn increment(ctx: Context<Mutate>) -> Result<()> {
+        ctx.accounts.probe.count = ctx.accounts.probe.count.saturating_add(1);
+        Ok(())
+    }
+
+    /// ER: read TWO oracle feeds, divide into a 1e9-scaled ratio via shear-math, store it.
+    /// feed_id == the price account's own pubkey bytes (MagicBlock oracle convention).
+    pub fn store_ratio(ctx: Context<StoreRatio>, max_age: u64) -> Result<()> {
+        let clock = Clock::get()?;
+        let base = PriceUpdateV2::try_deserialize_unchecked(
+            &mut (*ctx.accounts.base_price.data.borrow()).as_ref(),
+        )?;
+        let quote = PriceUpdateV2::try_deserialize_unchecked(
+            &mut (*ctx.accounts.quote_price.data.borrow()).as_ref(),
+        )?;
+        let pb = base.get_price_no_older_than(&clock, max_age, &ctx.accounts.base_price.key().to_bytes())?;
+        let pq = quote.get_price_no_older_than(&clock, max_age, &ctx.accounts.quote_price.key().to_bytes())?;
+        // dogfood the verified, unit-tested math crate:
+        let r = shear_math::compute_ratio(pb.price, pq.price).map_err(|_| error!(SpikeError::BadPrice))?;
+        ctx.accounts.probe.last_ratio = r;
+        msg!("ratio(1e9) = {}", r);
+        Ok(())
+    }
+
+    /// ER→L1: schedule a crank that fires `increment` every `interval_ms`, `iterations` times.
+    /// (`iterations` "run forever" sentinel is a spike-time TODO — test i64::MAX / 0 / -1.)
+    pub fn schedule_crank(
+        ctx: Context<ScheduleCrank>,
+        task_id: i64,
+        interval_ms: i64,
+        iterations: i64,
+    ) -> Result<()> {
+        let inc_ix = Instruction {
+            program_id: crate::ID,
+            accounts: vec![AccountMeta::new(ctx.accounts.probe.key(), false)],
+            data: anchor_lang::InstructionData::data(&crate::instruction::Increment {}),
+        };
+        let data = bincode::serialize(&MagicBlockInstruction::ScheduleTask(ScheduleTaskArgs {
+            task_id,
+            execution_interval_millis: interval_ms,
+            iterations,
+            instructions: vec![inc_ix],
+        }))
+        .map_err(|_| error!(SpikeError::Serialize))?;
+        let ix = Instruction::new_with_bytes(
+            MAGIC_PROGRAM_ID,
+            &data,
+            vec![
+                AccountMeta::new(ctx.accounts.payer.key(), true),
+                AccountMeta::new(ctx.accounts.probe.key(), false),
+            ],
+        );
+        invoke_signed(
+            &ix,
+            &[
+                ctx.accounts.payer.to_account_info(),
+                ctx.accounts.probe.to_account_info(),
+            ],
+            &[],
+        )?;
+        Ok(())
+    }
+
+    /// ER: commit probe state to L1 without giving up the ER.
+    pub fn commit_state(ctx: Context<CommitProbe>) -> Result<()> {
+        ctx.accounts.probe.exit(&crate::ID)?; // serialize before the intent
+        MagicIntentBundleBuilder::new(
+            ctx.accounts.payer.to_account_info(),
+            ctx.accounts.magic_context.to_account_info(),
+            ctx.accounts.magic_program.to_account_info(),
+        )
+        .commit(&[ctx.accounts.probe.to_account_info()])
+        .build_and_invoke()?;
+        Ok(())
+    }
+
+    /// ER→L1: commit + return ownership to SHEAR.
+    pub fn undelegate(ctx: Context<CommitProbe>) -> Result<()> {
+        ctx.accounts.probe.exit(&crate::ID)?;
+        MagicIntentBundleBuilder::new(
+            ctx.accounts.payer.to_account_info(),
+            ctx.accounts.magic_context.to_account_info(),
+            ctx.accounts.magic_program.to_account_info(),
+        )
+        .commit_and_undelegate(&[ctx.accounts.probe.to_account_info()])
+        .build_and_invoke()?;
+        Ok(())
+    }
+}
+
+#[account]
+pub struct Probe {
+    pub authority: Pubkey, // 32
+    pub count: u64,        // 8
+    pub last_ratio: u128,  // 16
+    pub bump: u8,          // 1
+}
+// space = 8 disc + 32 + 8 + 16 + 1 = 65
+
+#[derive(Accounts)]
+pub struct Initialize<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(init, payer = payer, space = 8 + 32 + 8 + 16 + 1,
+              seeds = [PROBE_SEED, payer.key().as_ref()], bump)]
+    pub probe: Account<'info, Probe>,
+    pub system_program: Program<'info, System>,
+}
+
+#[delegate]
+#[derive(Accounts)]
+pub struct DelegateProbe<'info> {
+    pub payer: Signer<'info>,
+    /// CHECK: delegated via PDA seeds; UncheckedAccount avoids Anchor re-serializing
+    /// stale data after ownership transfers to the delegation program.
+    #[account(mut, del, seeds = [PROBE_SEED, payer.key().as_ref()], bump)]
+    pub probe: UncheckedAccount<'info>,
+}
+
+#[derive(Accounts)]
+pub struct Mutate<'info> {
+    // No signer: the crank invokes this with only [probe].
+    #[account(mut, seeds = [PROBE_SEED, probe.authority.as_ref()], bump = probe.bump)]
+    pub probe: Account<'info, Probe>,
+}
+
+#[derive(Accounts)]
+pub struct StoreRatio<'info> {
+    #[account(mut, seeds = [PROBE_SEED, probe.authority.as_ref()], bump = probe.bump)]
+    pub probe: Account<'info, Probe>,
+    /// CHECK: PriceUpdateV2; feed_id == this account's key bytes
+    pub base_price: AccountInfo<'info>,
+    /// CHECK: PriceUpdateV2; feed_id == this account's key bytes
+    pub quote_price: AccountInfo<'info>,
+}
+
+#[derive(Accounts)]
+pub struct ScheduleCrank<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(mut, seeds = [PROBE_SEED, probe.authority.as_ref()], bump = probe.bump)]
+    pub probe: Account<'info, Probe>,
+    /// CHECK: the MagicBlock program (Magic11111111111111111111111111111111111111)
+    #[account(address = MAGIC_PROGRAM_ID)]
+    pub magic_program: AccountInfo<'info>,
+}
+
+#[commit]
+#[derive(Accounts)]
+pub struct CommitProbe<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(mut, seeds = [PROBE_SEED, payer.key().as_ref()], bump = probe.bump)]
+    pub probe: Account<'info, Probe>,
+}
+
+#[error_code]
+pub enum SpikeError {
+    #[msg("oracle price is stale or invalid")]
+    BadPrice,
+    #[msg("failed to serialize crank instruction")]
+    Serialize,
+}

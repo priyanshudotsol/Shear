@@ -1,0 +1,11 @@
+[package]
+name = "shear-math"
+version = "0.1.0"
+edition = "2021"
+description = "Pure integer math for SHEAR (ratio, PnL, margin, funding, liquidation, LP shares). No external deps — testable offline."
+
+[lib]
+
+# Own workspace root so `cargo test` here ignores the Anchor program workspace
+# (which needs crates.io). This crate has ZERO dependencies and builds offline.
+[workspace]
