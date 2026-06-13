@@ -5,10 +5,7 @@ import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Eyebrow } from "@/components/common";
 import { LiveTeaser } from "@/components/landing/live-teaser";
-import { MarketsStrip } from "@/components/landing/markets-strip";
 import { Reveal, Stagger, StaggerItem, GlowBlob } from "@/components/motion";
-import { FAMILY } from "@/lib/constants";
-import { ShearMark } from "@/components/brand/logo";
 import { ArrowRight, Scale, Activity, Layers, Gauge, ShieldCheck, Zap } from "lucide-react";
 
 const FEATURES = [
@@ -104,7 +101,7 @@ export default function Home() {
             >
               {[
                 ["50×", "max leverage"],
-                ["~50ms", "oracle repricing"],
+                ["5ms", "block time"],
                 ["0 fees", "gasless sessions"],
               ].map(([a, b]) => (
                 <div key={a}>
@@ -126,28 +123,9 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Live markets */}
-      <section className={`${SECTION} py-12 sm:py-16`}>
-        <Reveal className="mb-6 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <Eyebrow>Live markets</Eyebrow>
-            <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
-              Three pairs, priced in real time.
-            </h2>
-          </div>
-          <Link href="/trade" className="group inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-            Open the terminal
-            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-          </Link>
-        </Reveal>
-        <Reveal delay={0.05}>
-          <MarketsStrip />
-        </Reveal>
-      </section>
-
       {/* Built on */}
       <section className={`${SECTION} pb-4`}>
-        <Reveal className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 rounded-2xl border border-border/60 bg-card/30 px-6 py-5">
+        <Reveal className="beam-border relative overflow-hidden flex flex-wrap items-center justify-center gap-x-8 gap-y-3 rounded-2xl border border-border/60 bg-card/30 px-6 py-5">
           <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground/70">Built on</span>
           {BUILT_ON.map((b) => (
             <span key={b} className="text-sm font-medium text-muted-foreground">
@@ -212,40 +190,6 @@ export default function Home() {
             </Stagger>
           </div>
         </Reveal>
-      </section>
-
-      {/* Family */}
-      <section className={`${SECTION} py-20 sm:py-28`}>
-        <Reveal className="mx-auto max-w-2xl text-center">
-          <Eyebrow className="mx-auto">One product family</Eyebrow>
-          <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Three primitives, one wordmark.
-          </h2>
-        </Reveal>
-        <Stagger className="mt-12 grid gap-5 md:grid-cols-3">
-          {FAMILY.map((f) => (
-            <StaggerItem
-              key={f.name}
-              hover
-              className={
-                "h-full rounded-2xl border p-7 transition-colors " +
-                (f.active ? "border-primary/40 bg-primary/5" : "border-border bg-card/40 hover:border-border")
-              }
-            >
-              <div className="flex items-center gap-2">
-                {f.active && <ShearMark className="h-4 w-4 text-primary" />}
-                <span className="text-lg font-semibold tracking-tight">{f.name}</span>
-                {f.active && (
-                  <span className="ml-auto rounded-full bg-primary/15 px-2 py-0.5 text-[10px] uppercase tracking-wide text-primary">
-                    This build
-                  </span>
-                )}
-              </div>
-              <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">{f.category}</div>
-              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{f.meaning}</p>
-            </StaggerItem>
-          ))}
-        </Stagger>
       </section>
 
       {/* Final CTA */}

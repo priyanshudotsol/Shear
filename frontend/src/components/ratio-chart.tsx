@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   createChart,
   CandlestickSeries,
@@ -48,9 +48,12 @@ interface Props {
   entryRatio?: number | null;
   liqRatio?: number | null;
   height?: number;
+  /** When set, zoom to the most recent N candles instead of fitting the full range — gives candles
+   *  a readable width in narrow containers (e.g. the landing teaser) rather than a dense strip. */
+  visibleBars?: number;
 }
 
-export function RatioChart({ base, quote, liveRatio, entryRatio, liqRatio, height = 360 }: Props) {
+export function RatioChart({ base, quote, liveRatio, entryRatio, liqRatio, height = 360, visibleBars }: Props) {
   const elRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -58,6 +61,18 @@ export function RatioChart({ base, quote, liveRatio, entryRatio, liqRatio, heigh
   const lastSaveRef = useRef(0);
   const entryLineRef = useRef<IPriceLine | null>(null);
   const liqLineRef = useRef<IPriceLine | null>(null);
+
+  // Fit the full range, or zoom to the most recent `visibleBars` candles when set.
+  const applyView = useCallback(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const len = candlesRef.current.length;
+    if (visibleBars && len > visibleBars) {
+      chart.timeScale().setVisibleLogicalRange({ from: len - visibleBars, to: len + 4 });
+    } else {
+      chart.timeScale().fitContent();
+    }
+  }, [visibleBars]);
 
   // init chart once
   useEffect(() => {
@@ -100,7 +115,7 @@ export function RatioChart({ base, quote, liveRatio, entryRatio, liqRatio, heigh
     const ro = new ResizeObserver(() => {
       if (!elRef.current) return;
       chart.applyOptions({ width: elRef.current.clientWidth });
-      chart.timeScale().fitContent();
+      applyView();
     });
     ro.observe(el);
     return () => {
@@ -109,7 +124,7 @@ export function RatioChart({ base, quote, liveRatio, entryRatio, liqRatio, heigh
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, [height]);
+  }, [height, applyView]);
 
   // load cached candles instantly, then refresh from Pyth (so refresh is never blank / "gone")
   useEffect(() => {
@@ -120,7 +135,7 @@ export function RatioChart({ base, quote, liveRatio, entryRatio, liqRatio, heigh
     const render = (candles: Candle[]) => {
       candlesRef.current = candles;
       s.setData(candles.map((c) => ({ ...c, time: c.time as UTCTimestamp })));
-      requestAnimationFrame(() => chartRef.current?.timeScale().fitContent());
+      requestAnimationFrame(applyView);
     };
 
     const cached = loadCache(base, quote);
@@ -136,7 +151,7 @@ export function RatioChart({ base, quote, liveRatio, entryRatio, liqRatio, heigh
     return () => {
       cancelled = true;
     };
-  }, [base, quote]);
+  }, [base, quote, applyView]);
 
   // live: fold the current ratio into the forming candle (or roll a new one) + persist
   useEffect(() => {

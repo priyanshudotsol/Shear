@@ -7,6 +7,7 @@ import { useMarket } from "@/context/market";
 import { WalletButton } from "@/components/wallet-button";
 import { Button } from "@/components/ui/button";
 import { Stat, PnlText } from "@/components/common";
+import { EventFeed } from "@/components/event-feed";
 import { getTrades, hydrateTrades, tradeStats, type ClosedTrade } from "@/lib/trade-log";
 import * as M from "@/lib/shear-math";
 import { fmtUsd, fmtUsdSigned, fmtPctRaw, fmtRatio, fmtNum, shortKey } from "@/lib/format";
@@ -200,6 +201,14 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
+
+      {/* recent activity (opens + closes) from the DB event log */}
+      <div className="mt-8">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Recent activity</h2>
+        <div className="mt-3 rounded-xl border border-border bg-card/70 p-2">
+          <EventFeed owner={addr} limit={12} />
+        </div>
+      </div>
 
       {/* trade history */}
       <div className="mt-8 flex items-center justify-between">
