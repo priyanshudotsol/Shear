@@ -25,7 +25,7 @@ import {
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import idlJson from "./idl/shear.json";
-import { pda, programId, baseConn, erConn, fetchUserBalance, fetchUserBalanceFrom, fetchTokenBalance, fetchPositions } from "./chain";
+import { pda, programId, baseConn, erConn, fetchUserBalance, fetchUserBalanceFrom, fetchSessionAuthority, fetchTokenBalance, fetchPositions } from "./chain";
 import { FEEDS, PARAMS } from "./constants";
 import { getSessionKeypair } from "./session";
 import { withdrawCollateral, depositLiquidity, withdrawLiquidity, type SignerWallet } from "./chain-write";
@@ -220,6 +220,19 @@ export async function provisionTrader(
       }
       ubDelegated = await isDelegated(userBalance);
       posDelegated = await isDelegated(position);
+    }
+  }
+
+  // Session-key mismatch recovery: if user_balance is delegated but the session_authority it has on
+  // record no longer matches THIS browser's session key (localStorage cleared, different browser, or
+  // a re-generated key), every ER trade fails authorize() with Unauthorized (0x1770). Bring
+  // user_balance back to L1 so the setup path below re-registers the current key via set_session_key
+  // and re-delegates. undelegate_user only needs the session key as payer (no authority relation).
+  if (ubDelegated) {
+    const onChainAuth = await fetchSessionAuthority(erConn, wallet.publicKey);
+    if (onChainAuth && onChainAuth !== sessionKp.publicKey.toBase58()) {
+      await undelegateUser(wallet);
+      ubDelegated = await isDelegated(userBalance);
     }
   }
 

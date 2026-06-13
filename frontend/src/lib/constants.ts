@@ -43,8 +43,8 @@ export const PARAMS = {
   fMaxBps: 5, // funding cap 0.05%/hr
   oiCapAbs: 1_000_000, // gross OI cap (USDC)
   maxNetUtilBps: 9000, // |net_oi| <= 90% of pool (relaxed for small devnet pools)
-  minCollateral: 5, // USDC
-  minPositionNotional: 5, // USDC
+  minCollateral: 1, // USDC
+  minPositionNotional: 1, // USDC
   maxAgeSec: 2,
   maxRatioConfBps: 50,
   fundingIntervalSecs: 3600,

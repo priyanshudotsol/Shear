@@ -29,14 +29,14 @@ const er = new Connection("https://devnet.magicblock.app", "confirmed");
     console.log("undelegated market+pool to L1");
   }
 
-  // 2. relax risk params (90% pool util, 5 USDC minimums) on L1
+  // 2. relax risk params (90% pool util, 1 USDC minimums) on L1
   await baseProg.methods.setMarketRisk({
     maxLeverage: 50, mmrBps: 150, maxNetUtilBps: 9000,
     oiCapAbs: new anchor.BN(1_000_000_000_000),
-    minCollateral: new anchor.BN(5_000_000),         // 5 USDC
-    minPositionNotional: new anchor.BN(5_000_000),   // 5 USDC
+    minCollateral: new anchor.BN(1_000_000),         // 1 USDC
+    minPositionNotional: new anchor.BN(1_000_000),   // 1 USDC
   }).accounts({ admin: kp.publicKey, config, market }).rpc();
-  console.log("set_market_risk OK — max_net_util 90%, min collateral/notional 5 USDC");
+  console.log("set_market_risk OK — max_net_util 90%, min collateral/notional 1 USDC");
 
   // 3. re-delegate market + pool to the ER
   await baseProg.methods.delegateMarket([...sym]).accounts({ payer: kp.publicKey, market }).rpc({ skipPreflight: true });

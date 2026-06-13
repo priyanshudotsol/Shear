@@ -106,12 +106,15 @@ export async function fetchConfig() {
 // Market + Pool live on the ER (delegated). Falls back to base if not delegated.
 export async function fetchMarket(symbol: string): Promise<ChainMarket | null> {
   const addr = pda.market(symbol);
-  let m = await fetchDecoded(erConn, addr, "Market");
-  let delegated = true;
-  if (!m) {
-    m = await fetchDecoded(baseConn, addr, "Market");
-    delegated = false;
-  }
+  // Authoritative delegation check: a delegated account is no longer owned by our program on the
+  // base layer. The ER router returns the account even when it's NOT delegated (it proxies the base
+  // copy), so "the ER has it" is a false-positive — gating trading on that lets open_position fail
+  // on-chain with InvalidWritableAccount because market/pool aren't actually delegated.
+  const baseInfo = await baseConn.getAccountInfo(addr);
+  const delegated = !!baseInfo && !baseInfo.owner.equals(programId);
+  // Prefer fresh ER state while delegated; otherwise (or if ER hasn't cloned it yet) read base.
+  let m = delegated ? await fetchDecoded(erConn, addr, "Market") : null;
+  if (!m) m = await fetchDecoded(baseConn, addr, "Market");
   if (!m) return null;
   return {
     symbol: new TextDecoder().decode(Uint8Array.from(m.symbol)).replace(/\0+$/, ""),
@@ -152,6 +155,14 @@ export async function fetchUserBalanceFrom(conn: Connection, owner: PublicKey): 
   const u = await fetchDecoded(conn, pda.user(owner), "UserBalance");
   if (!u) return null;
   return n(u.free_collateral) / SCALE;
+}
+
+// The session key currently authorized to sign this trader's ER ops (base58), from a given layer.
+// Reads raw account data, so it works even while the account is delegated (owner = delegation prog).
+export async function fetchSessionAuthority(conn: Connection, owner: PublicKey): Promise<string | null> {
+  const u = await fetchDecoded(conn, pda.user(owner), "UserBalance");
+  if (!u || !u.session_authority) return null;
+  return new PublicKey(u.session_authority).toBase58();
 }
 
 // SPL balance of a given mint for an owner (used for the program's mock USDC).

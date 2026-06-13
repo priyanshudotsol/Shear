@@ -55,7 +55,7 @@ export function OrderPanel() {
 
   async function handleOpen() {
     if (!anchorWallet || !usdcMint) return toast.error("Connect a wallet");
-    if (!sessionLive) return toast.error("Trading session isn't live (run session-start.ts)");
+    if (!sessionLive) return toast.error("Trading session isn't live (run scripts/session-start.cjs)");
     if (c < PARAMS.minCollateral) return toast.error(`Minimum collateral is ${PARAMS.minCollateral} USDC`);
     if (exceedsPool) return toast.error(`Position too large for the pool — max ~${availNotional.toFixed(0)} USDC notional. Add liquidity or size down.`);
     try {
@@ -220,7 +220,7 @@ export function OrderPanel() {
             <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
               <Info className="mt-0.5 h-3 w-3 shrink-0" />
               {!sessionLive
-                ? "Trading session isn't live yet — an admin must delegate the market to the ER (scripts/session-start.ts)."
+                ? "Trading session isn't live yet — an admin must delegate the market to the ER (scripts/session-start.cjs)."
                 : positions.length > 0
                   ? `${positions.length} open position${positions.length > 1 ? "s" : ""} — open another, or manage them on the Positions page. Free collateral: ${fmtUsd(freeCollateral)}.`
                   : `Opens a new position on the ER. You can hold up to ${MAX_POSITIONS} at once. Free collateral: ${fmtUsd(freeCollateral)}.`}

@@ -19,8 +19,8 @@ const sym = (() => { const b = Buffer.alloc(16); b.write("SOL-ETH"); return b; }
   const pid = program.programId;
   const w = provider.wallet.publicKey;
 
-  const [market] = PublicKey.findProgramAddressSync([seed("market"), sym], pid);
-  const [pool] = PublicKey.findProgramAddressSync([seed("pool"), market.toBuffer()], pid);
+  const [market] = PublicKey.findProgramAddressSync([seed("market_uc"), sym], pid);
+  const [pool] = PublicKey.findProgramAddressSync([seed("pool_uc"), market.toBuffer()], pid);
 
   // delegate the shared accounts (co-delegate to the SAME validator, magicblock-integration.md §2)
   const rem = VALIDATOR ? [{ pubkey: VALIDATOR, isWritable: false, isSigner: false }] : [];

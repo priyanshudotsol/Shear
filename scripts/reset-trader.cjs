@@ -8,14 +8,14 @@ const { PublicKey, Connection, Keypair, Transaction } = require("../frontend/nod
 const PID = new PublicKey("6MmNvgdPtujGAnoFFn3V74RYR6vgyTVA7EAKPBEussGi");
 const idl = require("../frontend/src/lib/idl/shear.json");
 const sym = Buffer.alloc(16); sym.write("SOL-ETH");
-const [market] = PublicKey.findProgramAddressSync([Buffer.from("market"), sym], PID);
+const [market] = PublicKey.findProgramAddressSync([Buffer.from("market_uc"), sym], PID);
 
 (async () => {
   const userPk = new PublicKey(process.argv[2]);
   const admin = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(
     fs.readFileSync(path.join(process.env.HOME, ".config/solana/devnet-trading-wallet.json"), "utf8"))));
-  const [userBalance] = PublicKey.findProgramAddressSync([Buffer.from("user"), userPk.toBuffer()], PID);
-  const [position] = PublicKey.findProgramAddressSync([Buffer.from("position"), userPk.toBuffer(), market.toBuffer()], PID);
+  const [userBalance] = PublicKey.findProgramAddressSync([Buffer.from("user_uc"), userPk.toBuffer()], PID);
+  const [position] = PublicKey.findProgramAddressSync([Buffer.from("posbook_uc"), userPk.toBuffer(), market.toBuffer()], PID);
 
   const base = new Connection("https://api.devnet.solana.com", "confirmed");
   const erConn = new Connection("https://devnet.magicblock.app", "confirmed");

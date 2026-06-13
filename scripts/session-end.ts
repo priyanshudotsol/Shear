@@ -21,8 +21,8 @@ const sym = (() => { const b = Buffer.alloc(16); b.write("SOL-ETH"); return b; }
   const pid = program.programId;
   const w = base.wallet.publicKey;
 
-  const [market] = PublicKey.findProgramAddressSync([seed("market"), sym], pid);
-  const [pool] = PublicKey.findProgramAddressSync([seed("pool"), market.toBuffer()], pid);
+  const [market] = PublicKey.findProgramAddressSync([seed("market_uc"), sym], pid);
+  const [pool] = PublicKey.findProgramAddressSync([seed("pool_uc"), market.toBuffer()], pid);
 
   const er = new anchor.AnchorProvider(
     new Connection(process.env.EPHEMERAL_PROVIDER_ENDPOINT || "https://devnet.magicblock.app", {
