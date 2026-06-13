@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createChart,
   CandlestickSeries,
@@ -14,17 +14,40 @@ import {
 } from "lightweight-charts";
 import { fetchRatioCandles, postLiveCandle, type Candle } from "@/lib/pyth-history";
 
-const RESOLUTION_MIN = 60; // 1h candles
-const PERIOD = RESOLUTION_MIN * 60; // seconds per candle
-const DAYS = 7;
-const MAX_CANDLES = 600;
+const DEFAULT_RESOLUTION_MIN = 60; // 1h candles
+const MAX_CANDLES = 1500;
 
-const cacheKey = (base: string, quote: string) => `shear:candles:${base}-${quote}:${RESOLUTION_MIN}`;
+// Selectable timeframes. `min` is the candle resolution in minutes — also the store/Pyth key
+// (24h = 1440 = daily bars). Each timeframe is a separate row set keyed by resolution in the DB.
+const TIMEFRAMES: { label: string; min: number }[] = [
+  { label: "1m", min: 1 },
+  { label: "5m", min: 5 },
+  { label: "15m", min: 15 },
+  { label: "30m", min: 30 },
+  { label: "1h", min: 60 },
+  { label: "24h", min: 1440 },
+];
 
-function loadCache(base: string, quote: string): Candle[] {
+// History window per timeframe — enough bars to fill the chart without over-fetching Pyth or
+// tripping the store's "thin" backfill on every load.
+const daysFor = (min: number): number => {
+  switch (min) {
+    case 1: return 1;
+    case 5: return 3;
+    case 15: return 7;
+    case 30: return 14;
+    case 60: return 30;
+    case 1440: return 365;
+    default: return 7;
+  }
+};
+
+const cacheKey = (base: string, quote: string, res: number) => `shear:candles:${base}-${quote}:${res}`;
+
+function loadCache(base: string, quote: string, res: number): Candle[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(cacheKey(base, quote));
+    const raw = window.localStorage.getItem(cacheKey(base, quote, res));
     if (!raw) return [];
     const c = JSON.parse(raw) as Candle[];
     return Array.isArray(c) ? c : [];
@@ -32,10 +55,10 @@ function loadCache(base: string, quote: string): Candle[] {
     return [];
   }
 }
-function saveCache(base: string, quote: string, candles: Candle[]) {
+function saveCache(base: string, quote: string, res: number, candles: Candle[]) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(cacheKey(base, quote), JSON.stringify(candles.slice(-MAX_CANDLES)));
+    window.localStorage.setItem(cacheKey(base, quote, res), JSON.stringify(candles.slice(-MAX_CANDLES)));
   } catch {
     /* storage full / unavailable */
   }
@@ -51,9 +74,13 @@ interface Props {
   /** When set, zoom to the most recent N candles instead of fitting the full range — gives candles
    *  a readable width in narrow containers (e.g. the landing teaser) rather than a dense strip. */
   visibleBars?: number;
+  /** Show the 1m/5m/.../24h timeframe selector. Off for compact embeds (e.g. landing teaser). */
+  showTimeframes?: boolean;
 }
 
-export function RatioChart({ base, quote, liveRatio, entryRatio, liqRatio, height = 360, visibleBars }: Props) {
+export function RatioChart({ base, quote, liveRatio, entryRatio, liqRatio, height = 360, visibleBars, showTimeframes = false }: Props) {
+  const [resolutionMin, setResolutionMin] = useState(DEFAULT_RESOLUTION_MIN);
+  const period = resolutionMin * 60; // seconds per candle
   const elRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -138,20 +165,20 @@ export function RatioChart({ base, quote, liveRatio, entryRatio, liqRatio, heigh
       requestAnimationFrame(applyView);
     };
 
-    const cached = loadCache(base, quote);
-    if (cached.length) render(cached); // instant — survives refresh
+    const cached = loadCache(base, quote, resolutionMin);
+    render(cached.length ? cached : []); // instant — survives refresh; clears stale timeframe on switch
 
     (async () => {
-      const fresh = await fetchRatioCandles(base, quote, RESOLUTION_MIN, DAYS);
+      const fresh = await fetchRatioCandles(base, quote, resolutionMin, daysFor(resolutionMin));
       if (cancelled || !seriesRef.current || fresh.length === 0) return;
       render(fresh);
-      saveCache(base, quote, fresh);
+      saveCache(base, quote, resolutionMin, fresh);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [base, quote, applyView]);
+  }, [base, quote, resolutionMin, applyView]);
 
   // live: fold the current ratio into the forming candle (or roll a new one) + persist
   useEffect(() => {
@@ -159,7 +186,7 @@ export function RatioChart({ base, quote, liveRatio, entryRatio, liqRatio, heigh
     if (!s || !liveRatio || liveRatio <= 0) return;
     const candles = candlesRef.current;
     const now = Math.floor(Date.now() / 1000);
-    const bucket = Math.floor(now / PERIOD) * PERIOD;
+    const bucket = Math.floor(now / period) * period;
     const last = candles[candles.length - 1];
     if (!last || bucket > last.time) {
       const c: Candle = { time: bucket, open: liveRatio, high: liveRatio, low: liveRatio, close: liveRatio };
@@ -175,10 +202,10 @@ export function RatioChart({ base, quote, liveRatio, entryRatio, liqRatio, heigh
     // store (so live ticks accumulate server-side, shared across sessions/browsers).
     if (now - lastSaveRef.current > 5) {
       lastSaveRef.current = now;
-      saveCache(base, quote, candles);
-      postLiveCandle(base, quote, RESOLUTION_MIN, candles[candles.length - 1]);
+      saveCache(base, quote, resolutionMin, candles);
+      postLiveCandle(base, quote, resolutionMin, candles[candles.length - 1]);
     }
-  }, [liveRatio, base, quote]);
+  }, [liveRatio, base, quote, resolutionMin, period]);
 
   // entry / liq price lines
   useEffect(() => {
@@ -214,5 +241,28 @@ export function RatioChart({ base, quote, liveRatio, entryRatio, liqRatio, heigh
     }
   }, [entryRatio, liqRatio]);
 
-  return <div ref={elRef} className="w-full" style={{ height }} />;
+  return (
+    <div className="w-full">
+      {showTimeframes && (
+        <div className="mb-2 flex items-center gap-1">
+          {TIMEFRAMES.map((tf) => (
+            <button
+              key={tf.min}
+              type="button"
+              onClick={() => setResolutionMin(tf.min)}
+              className={
+                "rounded px-2 py-1 text-xs font-medium transition-colors " +
+                (tf.min === resolutionMin
+                  ? "bg-secondary text-foreground"
+                  : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground")
+              }
+            >
+              {tf.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <div ref={elRef} className="w-full" style={{ height }} />
+    </div>
+  );
 }

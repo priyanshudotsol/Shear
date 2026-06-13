@@ -35,7 +35,7 @@ export default function TradePage() {
             <ErBadge />
           </div>
           <div className="p-4">
-            <RatioChart base={active.base} quote={active.quote} liveRatio={ratio} entryRatio={position?.entryRatio} liqRatio={liqRatio} height={420} />
+            <RatioChart base={active.base} quote={active.quote} liveRatio={ratio} entryRatio={position?.entryRatio} liqRatio={liqRatio} height={420} showTimeframes />
             {position && (
               <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1.5">

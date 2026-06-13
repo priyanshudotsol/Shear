@@ -13,7 +13,7 @@ export interface Candle {
 
 const marketKey = (base: string, quote: string) => `${base}-${quote}`;
 
-export async function getCandles(base: string, quote: string, resolution: number, limit = 600): Promise<Candle[]> {
+export async function getCandles(base: string, quote: string, resolution: number, limit = 1500): Promise<Candle[]> {
   const rows = await prisma.candle.findMany({
     where: { market: marketKey(base, quote), resolution },
     orderBy: { time: "desc" },
@@ -41,6 +41,9 @@ export async function upsertCandles(base: string, quote: string, resolution: num
 // --- source: Pyth benchmarks TradingView shim (server-side fetch). base/USD ÷ quote/USD per bar. ---
 const PYTH_BENCH = "https://benchmarks.pyth.network/v1/shims/tradingview/history";
 const pythSymbol = (asset: string) => `Crypto.${asset.toUpperCase()}/USD`;
+// Pyth's TradingView shim takes intraday resolutions as a minute count, but daily and above as
+// "1D"/"1W" — a raw "1440" is rejected, so map the 24h timeframe to the daily bar.
+const pythResolution = (min: number) => (min >= 1440 ? "1D" : String(min));
 
 interface Bars {
   s: string;
@@ -52,7 +55,7 @@ interface Bars {
 }
 
 async function fetchBars(asset: string, resolution: number, from: number, to: number): Promise<Bars | null> {
-  const url = `${PYTH_BENCH}?symbol=${encodeURIComponent(pythSymbol(asset))}&resolution=${resolution}&from=${from}&to=${to}`;
+  const url = `${PYTH_BENCH}?symbol=${encodeURIComponent(pythSymbol(asset))}&resolution=${pythResolution(resolution)}&from=${from}&to=${to}`;
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
