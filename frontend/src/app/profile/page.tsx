@@ -46,20 +46,30 @@ export default function ProfilePage() {
 
   if (!connected || !publicKey) {
     return (
-      <div className="relative mx-auto max-w-3xl px-4 py-20 sm:px-6">
-        <PageBackdrop />
-        <div className="flex flex-col items-center rounded-2xl border border-dashed border-border py-16 text-center">
-          <div className="grid h-12 w-12 place-items-center rounded-full bg-secondary text-muted-foreground">
-            <Wallet className="h-6 w-6" />
+      <div className="relative mx-auto flex min-h-[70vh] max-w-2xl items-center px-4 py-12 sm:px-6">
+        <Reveal className="relative w-full overflow-hidden rounded-3xl border border-border bg-card/60 p-8 text-center shadow-sm sm:p-12">
+          <div className="pointer-events-none absolute -left-24 -top-28 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-24 -right-20 h-52 w-52 rounded-full bg-primary/5 blur-3xl" />
+
+          <div className="relative mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-primary/25 to-primary/5 ring-1 ring-primary/20">
+            <Wallet className="h-7 w-7 text-primary" />
           </div>
-          <h1 className="mt-4 text-xl font-semibold">Connect to see your profile</h1>
-          <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Your trade history, PnL and stats are tied to your wallet.
+
+          <h1 className="relative mt-6 text-2xl font-semibold tracking-tight">Connect your wallet</h1>
+          <p className="relative mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
+            Your trade history, realized PnL and performance stats are tied to your wallet — connect to see your full profile.
           </p>
-          <div className="mt-5">
+
+          <div className="relative mt-6 flex justify-center">
             <WalletButton />
           </div>
-        </div>
+
+          <div className="relative mt-9 grid grid-cols-1 gap-3 border-t border-border/60 pt-7 text-left sm:grid-cols-3">
+            <FeaturePeek icon={Activity} label="Trade history" sub="Every close, recorded" />
+            <FeaturePeek icon={TrendingUp} label="PnL & win rate" sub="Realized performance" />
+            <FeaturePeek icon={Wallet} label="Account value" sub="Balances & LP" />
+          </div>
+        </Reveal>
       </div>
     );
   }
@@ -272,6 +282,20 @@ export default function ProfilePage() {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function FeaturePeek({ icon: Icon, label, sub }: { icon: typeof Wallet; label: string; sub: string }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-secondary text-primary">
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{label}</div>
+        <div className="text-xs text-muted-foreground">{sub}</div>
+      </div>
     </div>
   );
 }
