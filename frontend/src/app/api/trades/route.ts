@@ -4,7 +4,7 @@ import { getTrades, recordTrade, type TradeInput } from "@/lib/server/trades";
 export const runtime = "nodejs"; // Prisma needs the Node runtime
 export const dynamic = "force-dynamic"; // always serve live DB state
 
-// GET /api/trades?owner=<base58>&limit=200 — newest-first trade history for one wallet.
+// GET /api/trades?owner=<base58>&limit=200 - newest-first trade history for one wallet.
 export async function GET(req: NextRequest) {
   const owner = req.nextUrl.searchParams.get("owner");
   if (!owner) return Response.json({ trades: [] });
@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   return Response.json({ trades: await getTrades(owner, limit) });
 }
 
-// POST /api/trades — record a closed/liquidated trade. Idempotent on (owner, id).
+// POST /api/trades - record a closed/liquidated trade. Idempotent on (owner, id).
 export async function POST(req: NextRequest) {
   try {
     const b = (await req.json()) as Partial<TradeInput>;

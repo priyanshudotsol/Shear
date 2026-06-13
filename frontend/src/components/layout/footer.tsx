@@ -24,7 +24,7 @@ export function Footer() {
           <div className="max-w-sm space-y-3">
             <Wordmark />
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Relative-value perpetuals on MagicBlock. Trade the relationship between two assets —
+              Relative-value perpetuals on MagicBlock. Trade the relationship between two assets -
               one position, one margin, one liquidation.
             </p>
           </div>

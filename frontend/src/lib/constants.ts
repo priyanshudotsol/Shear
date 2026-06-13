@@ -13,14 +13,14 @@ export const ENDPOINTS = {
   router: "https://devnet-router.magicblock.app",
 };
 
-// MagicBlock real-time oracle feeds (devnet) — bound to the SOL-ETH market.
+// MagicBlock real-time oracle feeds (devnet) - bound to the SOL-ETH market.
 export const FEEDS = {
   oracleProgram: "PriCems5tHihc6UDXDjzjeawomAwBduWMGAi8ZUjppd",
   solUsd: "ENYwebBThHzmzwPLAQvCucUTsjyfBSZdD9ViXksS4jPu",
   ethUsd: "5vaYr1hpv8yrSpu8w3K95x22byYxUJCCNCSYJtqVWPvG",
 };
 
-// Pyth Hermes price service — live SOL/ETH/BTC USD streamed over SSE.
+// Pyth Hermes price service - live SOL/ETH/BTC USD streamed over SSE.
 // Feed IDs from https://pyth.network/developers/price-feed-ids (Crypto).
 export const PYTH = {
   hermes: "https://hermes.pyth.network",
@@ -57,7 +57,7 @@ export const PARAMS = {
 export const BPS = 10_000;
 
 // Devnet USDC mints (6 decimals). Wallets may hold USDC under either, depending on
-// which faucet they used — we sum across all of them when reading the balance.
+// which faucet they used - we sum across all of them when reading the balance.
 //   - Gh9Zw… : the SPL token-faucet "USDC-Dev" (spl-token-faucet.com, Saber, etc.)
 //   - 4zMMC… : Circle's official devnet USDC (faucet.circle.com)
 // The protocol is bound to Circle's official devnet USDC. Get it from https://faucet.circle.com.

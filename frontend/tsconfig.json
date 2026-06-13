@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "charting_library": ["./public/charting_library/charting_library.d.ts"]
     }
   },
   "include": [

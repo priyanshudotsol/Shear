@@ -69,7 +69,7 @@ export function recordTrade(owner: string, t: Omit<ClosedTrade, "id" | "closedTs
 }
 
 // Record a successful position OPEN to the durable activity log (fire-and-forget). This also
-// registers the wallet in the DB immediately — before any close. Idempotent on the tx signature.
+// registers the wallet in the DB immediately - before any close. Idempotent on the tx signature.
 export function recordOpen(
   owner: string,
   e: { symbol: string; side: "long" | "short"; notional: number; collateral: number; leverage: number; entryRatio: number; signature?: string | null }

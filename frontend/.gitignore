@@ -36,6 +36,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# TradingView Charting Library (proprietary, ~26MB) - not redistributable in a public repo.
+# Required at runtime by the chart; provide it on the deploy host separately (see README).
+/public/charting_library/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

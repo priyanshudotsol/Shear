@@ -47,7 +47,7 @@ export function Nav() {
                 key={l.href}
                 href={l.href}
                 className={cn(
-                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  "px-3 py-1.5 text-sm font-medium transition-colors",
                   active ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"
                 )}
               >
@@ -80,7 +80,7 @@ export function Nav() {
               key={l.href}
               href={l.href}
               className={cn(
-                "whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium",
+                "whitespace-nowrap px-3 py-1.5 text-sm font-medium",
                 active ? "bg-secondary text-foreground" : "text-muted-foreground"
               )}
             >

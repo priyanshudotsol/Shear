@@ -53,7 +53,7 @@ export function ChainPanel() {
 
       {error || (!loading && !market) ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          Couldn&apos;t read on-chain state right now. The market/pool live on the MagicBlock ER — retry shortly.
+          Couldn&apos;t read on-chain state right now. The market/pool live on the MagicBlock ER - retry shortly.
         </p>
       ) : (
         <>

@@ -25,7 +25,7 @@ function symbolSeed(symbol: string): Uint8Array {
   return b;
 }
 
-// v2 protocol seeds (suffix "_uc") — bound to Circle's devnet USDC. Must match programs/shear constants.
+// v2 protocol seeds (suffix "_uc") - bound to Circle's devnet USDC. Must match programs/shear constants.
 export const pda = {
   config: () => PublicKey.findProgramAddressSync([enc.encode("config_uc")], programId)[0],
   market: (symbol: string) =>
@@ -108,7 +108,7 @@ export async function fetchMarket(symbol: string): Promise<ChainMarket | null> {
   const addr = pda.market(symbol);
   // Authoritative delegation check: a delegated account is no longer owned by our program on the
   // base layer. The ER router returns the account even when it's NOT delegated (it proxies the base
-  // copy), so "the ER has it" is a false-positive — gating trading on that lets open_position fail
+  // copy), so "the ER has it" is a false-positive - gating trading on that lets open_position fail
   // on-chain with InvalidWritableAccount because market/pool aren't actually delegated.
   const baseInfo = await baseConn.getAccountInfo(addr);
   const delegated = !!baseInfo && !baseInfo.owner.equals(programId);

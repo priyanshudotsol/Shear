@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   let candles = await getCandles(base, quote, resolution);
   const latest = candles.length ? candles[candles.length - 1].time : 0;
   const stale = Math.floor(Date.now() / 1000) - latest > periodSec * 2;
-  // A live POST keeps `latest` fresh, so recency alone can't gate the backfill — also require that
+  // A live POST keeps `latest` fresh, so recency alone can't gate the backfill - also require that
   // the store actually holds most of the requested window, else history never loads for live markets.
   const thin = candles.length < expectedBars * 0.6;
   if (latest === 0 || stale || thin) {

@@ -1,6 +1,6 @@
 "use client";
 
-// Real ER trade flow for SHEAR — provisions the trader on L1, opens/closes on the MagicBlock ER,
+// Real ER trade flow for SHEAR - provisions the trader on L1, opens/closes on the MagicBlock ER,
 // and settles back to L1. Mirrors the proven sequence in tests/integration.ts:
 //   deposit_collateral + init_position + delegate_user_balance + delegate_position   (L1, one tx)
 //   open_position / close_position / add|remove_collateral                            (ER)
@@ -92,7 +92,7 @@ async function waitERReady(addrs: PublicKey[], timeoutMs = 25_000): Promise<void
     if (infos.every((i) => i && i.data.length > 0)) return;
     await new Promise((r) => setTimeout(r, 1000));
   }
-  throw new Error("accounts not ready on the ER yet — delegation is still propagating, try again in a moment");
+  throw new Error("accounts not ready on the ER yet - delegation is still propagating, try again in a moment");
 }
 
 // Send an ER instruction SIGNED BY THE SESSION KEY (a local keypair), not the browser wallet.
@@ -100,7 +100,7 @@ async function waitERReady(addrs: PublicKey[], timeoutMs = 25_000): Promise<void
 // signs. The owner authorized this key on L1 via set_session_key, and the program's authorize()
 // accepts user_balance.session_authority as a valid signer.
 // Retries on InvalidWritableAccount: right after a (re-)delegation the validator may accept READS
-// before it accepts WRITES to the account, so the first write can bounce — a short backoff fixes it.
+// before it accepts WRITES to the account, so the first write can bounce - a short backoff fixes it.
 async function sendERSession(owner: PublicKey, ix: TransactionInstruction, label = "ER tx"): Promise<string> {
   const kp = getSessionKeypair(owner);
   for (let attempt = 1; ; attempt++) {
@@ -199,7 +199,7 @@ export async function provisionTrader(
   let posDelegated = await isDelegated(position);
 
   // Recover ORPHANED accounts: delegated on L1 but missing/empty on the ER (a mid-session program
-  // redeploy can drop or zero the ER's cloned copy). Check for real DATA, not just existence — a
+  // redeploy can drop or zero the ER's cloned copy). Check for real DATA, not just existence - a
   // redeploy can leave a 0-length shell that exists but can't be read. Try to undelegate back to L1
   // so the steps below can re-delegate cleanly. If even undelegate fails (the shell has no
   // discriminator), the account data was destroyed and this wallet can't trade this market.
@@ -237,7 +237,7 @@ export async function provisionTrader(
   }
 
   // If user_balance is delegated but doesn't hold enough free collateral for this position, bring it
-  // back to L1 — you can't deposit into a delegated account. This flips ubDelegated false so the
+  // back to L1 - you can't deposit into a delegated account. This flips ubDelegated false so the
   // deposit + re-delegate flow below tops it up. (Open positions in the book are untouched.)
   if (ubDelegated) {
     const erFree = (await fetchUserBalanceFrom(erConn, wallet.publicKey)) ?? 0;
@@ -255,7 +255,7 @@ export async function provisionTrader(
     const shortfall = Math.max(0, neededFree(collateralUsdc, leverage) - free);
     const ixs: TransactionInstruction[] = [];
     if (shortfall > 0) {
-      // The protocol uses Circle's devnet USDC — get it from faucet.circle.com (we can't mint it).
+      // The protocol uses Circle's devnet USDC - get it from faucet.circle.com (we can't mint it).
       const walletUsdc = await fetchTokenBalance(wallet.publicKey, usdcMint);
       if (walletUsdc < shortfall) {
         throw new Error(
@@ -313,7 +313,7 @@ export async function openPositionER(
 // Guard before an ER write to an open position (close / add / remove). Normally the accounts are
 // already delegated and live on the ER, so this just waits for ER readiness. If they were settled
 // back to L1 while the position was still open (an interrupted "settle & withdraw"), RE-DELEGATE
-// them so the position can be closed — the validator needs a moment after a fresh delegation to
+// them so the position can be closed - the validator needs a moment after a fresh delegation to
 // accept writes (sendERSession retries on InvalidWritableAccount), so we also pause briefly.
 async function ensureDelegatedForWrite(wallet: SignerWallet, symbol: string): Promise<void> {
   const prog = program(wallet);
@@ -429,7 +429,7 @@ export async function settleAndWithdraw(
 // ---- Liquidity provision while a trading session is live ----
 // deposit/withdraw_liquidity are L1-only (token transfer + pool accounting), but trading needs the
 // pool on the ER. So if the pool is delegated, briefly undelegate market+pool, do the LP op, then
-// re-delegate — any LP can do this without an admin (undelegate/delegate are permissionless).
+// re-delegate - any LP can do this without an admin (undelegate/delegate are permissionless).
 // Trading pauses for a few seconds during the swap.
 
 async function undelegatePoolToL1(wallet: SignerWallet, symbol: string): Promise<void> {

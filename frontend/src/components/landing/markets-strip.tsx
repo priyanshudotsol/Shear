@@ -39,7 +39,7 @@ export function MarketsStrip() {
             <div className="mt-6 flex items-end justify-between">
               <div>
                 <div className="font-mono text-2xl font-semibold tnum">
-                  {priceLive ? fmtRatio(m.ratio) : "—"}
+                  {priceLive ? fmtRatio(m.ratio) : "-"}
                 </div>
                 <div className="mt-1 text-[11px] uppercase tracking-wide text-muted-foreground">ratio</div>
               </div>

@@ -13,7 +13,7 @@ export function OracleHealth({ className }: { className?: string }) {
         render={
           <div
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
+              "inline-flex items-center gap-1.5 border px-2.5 py-1 text-xs font-medium",
               oracleStale ? "border-down/40 text-down" : "border-up/30 text-up",
               className
             )}
@@ -39,7 +39,7 @@ export function SessionBadge({ className }: { className?: string }) {
         render={
           <div
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary",
+              "inline-flex items-center gap-1.5 border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary",
               className
             )}
           />
@@ -48,7 +48,7 @@ export function SessionBadge({ className }: { className?: string }) {
         <Zap className="h-3 w-3" />
         Gasless session
       </TooltipTrigger>
-      <TooltipContent>Session key active — open/close are popup-free and fee-free for 1h.</TooltipContent>
+      <TooltipContent>Session key active - open/close are popup-free and fee-free for 1h.</TooltipContent>
     </Tooltip>
   );
 }

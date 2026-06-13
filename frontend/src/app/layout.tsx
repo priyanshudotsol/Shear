@@ -9,9 +9,9 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "SHEAR — Relative-Value Perpetuals on MagicBlock",
+  title: "SHEAR - Relative-Value Perpetuals on MagicBlock",
   description:
-    "Trade one asset against another in a single click. SHEAR is a ratio-perp DEX — one synthetic position, one margin, one liquidation, repriced continuously on a MagicBlock Ephemeral Rollup.",
+    "Trade one asset against another in a single click. SHEAR is a ratio-perp DEX - one synthetic position, one margin, one liquidation, repriced continuously on a MagicBlock Ephemeral Rollup.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

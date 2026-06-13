@@ -29,7 +29,7 @@ export function PositionsPanel() {
   const [tab, setTab] = useState<Tab>("positions");
   const [busy, setBusy] = useState<string | null>(null);
 
-  // closed-trade history (localStorage) — re-read when the open book changes (a close adds a row)
+  // closed-trade history (localStorage) - re-read when the open book changes (a close adds a row)
   const owner = publicKey?.toBase58() ?? null;
   const [history, setHistory] = useState<ClosedTrade[]>([]);
   useEffect(() => {
@@ -103,7 +103,7 @@ export function PositionsPanel() {
           <PositionsTable positions={positions} active={active} chain={chain} busy={!!busy} owner={owner!} />
         )
       ) : tab === "orders" ? (
-        <Empty title="No open orders" body="SHEAR fills at the live oracle ratio — every order is a market order, so there are no resting limit orders." />
+        <Empty title="No open orders" body="SHEAR fills at the live oracle ratio - every order is a market order, so there are no resting limit orders." />
       ) : history.length === 0 ? (
         <Empty title="No trade history" body="Closed and liquidated positions will appear here." />
       ) : (

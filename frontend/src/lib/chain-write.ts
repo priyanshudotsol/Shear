@@ -3,7 +3,7 @@
 // Real on-chain writes for the SHEAR program, signed by the connected wallet.
 // NOTE: deposit_liquidity / withdraw_liquidity are base-layer instructions that
 // write the `pool` account. If the pool is delegated to the ER, the base tx will
-// be rejected — callers should check isPoolDelegated() first and surface that.
+// be rejected - callers should check isPoolDelegated() first and surface that.
 import { Buffer } from "buffer";
 import { AnchorProvider, Program, BN, type Idl } from "@coral-xyz/anchor";
 import { PublicKey, type Transaction, type VersionedTransaction } from "@solana/web3.js";
@@ -71,7 +71,7 @@ export async function withdrawLiquidity(
 }
 
 // Mint real, transferable test-USDC of the program's mint to the connected wallet (capped on-chain).
-// Replaces the old client-side "faucet" simulation — these are real tokens you can deposit + withdraw.
+// Replaces the old client-side "faucet" simulation - these are real tokens you can deposit + withdraw.
 export async function faucet(wallet: SignerWallet, usdcMint: PublicKey): Promise<string> {
   const program = getProgram(wallet);
   const ata = getAssociatedTokenAddressSync(usdcMint, wallet.publicKey);
@@ -84,7 +84,7 @@ export async function faucet(wallet: SignerWallet, usdcMint: PublicKey): Promise
     .rpc();
 }
 
-// Deposit real USDC into the trader's on-chain free collateral (UserBalance). L1 instruction —
+// Deposit real USDC into the trader's on-chain free collateral (UserBalance). L1 instruction -
 // must run while UserBalance is on the base layer (i.e. not mid-session-delegated).
 export async function depositCollateral(
   wallet: SignerWallet,

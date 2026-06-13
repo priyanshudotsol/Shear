@@ -4,7 +4,7 @@
     "name": "shear",
     "version": "0.1.0",
     "spec": "0.1.0",
-    "description": "SHEAR — relative-value (ratio) perpetuals on MagicBlock Ephemeral Rollups."
+    "description": "SHEAR - relative-value (ratio) perpetuals on MagicBlock Ephemeral Rollups."
   },
   "instructions": [
     {

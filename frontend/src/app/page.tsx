@@ -4,7 +4,7 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Eyebrow } from "@/components/common";
-import { LiveTeaser } from "@/components/landing/live-teaser";
+import { HeroChartBg } from "@/components/landing/hero-chart-bg";
 import { Reveal, Stagger, StaggerItem, GlowBlob } from "@/components/motion";
 import { ArrowRight, Scale, Activity, Layers, Gauge, ShieldCheck, Zap } from "lucide-react";
 
@@ -12,17 +12,17 @@ const FEATURES = [
   {
     icon: Scale,
     title: "Exact market-neutrality",
-    body: "uPnL = side × notional × (Rₙₒw / Rₑₙₜᵣy − 1). One synthetic ratio instrument — path-independent, zero leg drift. Being right about the matchup pays even when the market is wrong.",
+    body: "uPnL = side × notional × (Rₙₒw / Rₑₙₜᵣy − 1). One synthetic ratio instrument - path-independent, zero leg drift. Being right about the matchup pays even when the market is wrong.",
   },
   {
     icon: Layers,
     title: "Oracle-priced shared pool",
-    body: "Fills clear at the on-chain ratio against a single USDC LP pool — no order book, no vAMM, no price impact. The pool is the counterparty and earns fees plus funding.",
+    body: "Fills clear at the on-chain ratio against a single USDC LP pool - no order book, no vAMM, no price impact. The pool is the counterparty and earns fees plus funding.",
   },
   {
     icon: Activity,
     title: "Repriced continuously",
-    body: "Pyth feeds divided on-chain on a MagicBlock Ephemeral Rollup. Equity, margin and liquidation re-tick at oracle cadence — the chain confirms, the UI predicts.",
+    body: "Pyth feeds divided on-chain on a MagicBlock Ephemeral Rollup. Equity, margin and liquidation re-tick at oracle cadence - the chain confirms, the UI predicts.",
   },
   {
     icon: Gauge,
@@ -37,14 +37,14 @@ const FEATURES = [
   {
     icon: Zap,
     title: "Gasless sessions",
-    body: "One approval mints a session key — after that, open and close are popup-free and fee-free. Zero ER fees make per-block cranking and rapid repricing effectively free.",
+    body: "One approval mints a session key - after that, open and close are popup-free and fee-free. Zero ER fees make per-block cranking and rapid repricing effectively free.",
   },
 ];
 
 const STEPS = [
   { n: "01", t: "Pick a pair", d: "SOL-ETH, SOL-BTC or ETH-BTC. The instrument is the ratio R = BASE/USD ÷ QUOTE/USD." },
   { n: "02", t: "Take a side", d: "Long if you think the base outperforms the quote; short for the reverse. The market they share cancels out." },
-  { n: "03", t: "Trade gaslessly", d: "Collateral and leverage in, one synthetic position out — settled on the rollup at the live ratio." },
+  { n: "03", t: "Trade gaslessly", d: "Collateral and leverage in, one synthetic position out - settled on the rollup at the live ratio." },
   { n: "04", t: "Win the matchup", d: "PnL tracks the relationship, not the direction. Close any time; the pool settles instantly." },
 ];
 
@@ -57,68 +57,50 @@ export default function Home() {
   return (
     <div className="overflow-hidden">
       {/* Hero */}
-      <section className="relative">
-        <div className="pointer-events-none absolute inset-0 bg-grid radial-fade opacity-50" />
-        <GlowBlob className="pointer-events-none absolute left-1/2 top-[-15%] h-[460px] w-[min(900px,95vw)] -translate-x-1/2 rounded-full bg-primary/10 blur-[130px]" />
-        <div className={`${SECTION} relative grid items-center gap-12 py-16 sm:py-20 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:py-28`}>
-          <motion.div className="max-w-xl" variants={heroContainer} initial="hidden" animate="show">
-            <motion.div variants={fadeUp} transition={{ duration: 0.5, ease: "easeOut" }}>
-              <Eyebrow>
-                <span className="h-1.5 w-1.5 rounded-full bg-primary animate-ticker" />
-                Solana Blitz · MagicBlock Ephemeral Rollup
-              </Eyebrow>
-            </motion.div>
+      <section className="relative isolate overflow-hidden">
+        <HeroChartBg />
+        <div className="pointer-events-none absolute inset-0 z-0 bg-grid radial-fade opacity-30" />
+        <GlowBlob className="pointer-events-none absolute left-1/2 top-[-15%] z-0 h-[460px] w-[min(900px,95vw)] -translate-x-1/2 rounded-full bg-primary/10 blur-[130px]" />
+        <div className={`${SECTION} relative z-10 py-20 sm:py-28 lg:py-36`}>
+          <motion.div className="max-w-3xl" variants={heroContainer} initial="hidden" animate="show">
             <motion.h1
               variants={fadeUp}
               transition={{ duration: 0.6, ease: "easeOut" }}
-              className="mt-6 text-balance text-[2.6rem] font-semibold leading-[1.04] tracking-tight sm:text-6xl lg:text-[4.25rem]"
+              className="text-balance text-[3.25rem] font-semibold leading-[1.02] tracking-tight sm:text-7xl lg:text-[5.5rem]"
             >
               Trade the <span className="text-gradient-brand">relationship</span>, not the direction.
             </motion.h1>
             <motion.p
               variants={fadeUp}
               transition={{ duration: 0.6, ease: "easeOut" }}
-              className="mt-6 max-w-lg text-pretty text-base text-muted-foreground sm:text-lg"
+              className="mt-8 max-w-xl text-pretty text-lg text-muted-foreground sm:text-xl"
             >
-              SHEAR is a relative-value perpetual exchange. Long SOL, short ETH — in a single click, as
+              SHEAR is a relative-value perpetual exchange. Long SOL, short ETH - in a single click, as
               one market-neutral position, repriced continuously on a real-time rollup.
             </motion.p>
             <motion.div
               variants={fadeUp}
               transition={{ duration: 0.6, ease: "easeOut" }}
-              className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center"
+              className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-5"
             >
               <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                <Button render={<Link href="/trade" />} nativeButton={false} size="lg" className="gap-2 text-base">
-                  Launch app <ArrowRight className="h-4 w-4" />
+                <Button render={<Link href="/trade" />} nativeButton={false} size="lg" className="gap-2 text-lg">
+                  Launch app <ArrowRight className="h-5 w-5" />
                 </Button>
               </motion.div>
+              <dl className="flex items-center gap-x-6 sm:gap-x-8">
+                {[
+                  ["50×", "max leverage"],
+                  ["5ms", "block time"],
+                  ["0 fees", "gasless sessions"],
+                ].map(([a, b]) => (
+                  <div key={a}>
+                    <dt className="font-mono text-base font-semibold leading-none tracking-tight">{a}</dt>
+                    <dd className="mt-1 text-xs text-muted-foreground">{b}</dd>
+                  </div>
+                ))}
+              </dl>
             </motion.div>
-            <motion.dl
-              variants={fadeUp}
-              transition={{ duration: 0.6, ease: "easeOut" }}
-              className="mt-10 grid grid-cols-3 gap-4 border-t border-border/60 pt-8 sm:max-w-lg sm:gap-6"
-            >
-              {[
-                ["50×", "max leverage"],
-                ["5ms", "block time"],
-                ["0 fees", "gasless sessions"],
-              ].map(([a, b]) => (
-                <div key={a}>
-                  <dt className="font-mono text-xl font-semibold sm:text-2xl">{a}</dt>
-                  <dd className="mt-1 text-xs text-muted-foreground">{b}</dd>
-                </div>
-              ))}
-            </motion.dl>
-          </motion.div>
-
-          <motion.div
-            className="w-full"
-            initial={{ opacity: 0, y: 30, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.7, ease: "easeOut", delay: 0.15 }}
-          >
-            <LiveTeaser />
           </motion.div>
         </div>
       </section>
@@ -203,7 +185,7 @@ export default function Home() {
                 Take a view on the matchup.
               </h2>
               <p className="mt-4 text-pretty text-muted-foreground">
-                Connect a wallet, claim test USDC, and open your first ratio perp — gasless, on devnet.
+                Connect a wallet, claim test USDC, and open your first ratio perp - gasless, on devnet.
               </p>
               <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>

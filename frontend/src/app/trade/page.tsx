@@ -1,7 +1,7 @@
 "use client";
 
 import { useMarket } from "@/context/market";
-import { RatioChart } from "@/components/ratio-chart";
+import { TvChart } from "@/components/tv-chart";
 import { OrderPanel } from "@/components/trade/order-panel";
 import { MarketStatsBar, OpenInterest } from "@/components/trade/market-stats";
 import { PositionsPanel } from "@/components/trade/positions-panel";
@@ -20,13 +20,13 @@ export default function TradePage() {
     : null;
 
   return (
-    <div className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6">
+    <div className="relative w-full px-4 py-6">
       <PageBackdrop />
       <MarketStatsBar />
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_360px]">
         {/* chart */}
-        <div className="flex flex-col rounded-2xl border border-border bg-card/60">
+        <div className="flex flex-col border border-border bg-card/60">
           <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
             <div className="flex items-center gap-2 text-sm">
               <span className="font-semibold">{symbol}</span>
@@ -34,8 +34,8 @@ export default function TradePage() {
             </div>
             <ErBadge />
           </div>
-          <div className="p-4">
-            <RatioChart base={active.base} quote={active.quote} liveRatio={ratio} entryRatio={position?.entryRatio} liqRatio={liqRatio} height={420} showTimeframes />
+          <div className="flex min-h-0 flex-1 flex-col p-4">
+            <TvChart base={active.base} quote={active.quote} liveRatio={ratio} entryRatio={position?.entryRatio} liqRatio={liqRatio} fill />
             {position && (
               <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1.5">
@@ -52,7 +52,7 @@ export default function TradePage() {
         {/* order panel + live activity */}
         <div className="space-y-4">
           <OrderPanel />
-          <div className="rounded-2xl border border-border bg-card/60">
+          <div className="border border-border bg-card/60">
             <div className="flex items-center gap-2 border-b border-border/60 px-4 py-3 text-sm">
               <Activity className="h-3.5 w-3.5 text-primary" />
               <span className="font-semibold">Recent activity</span>
@@ -65,7 +65,7 @@ export default function TradePage() {
         </div>
       </div>
 
-      {/* positions / open orders / history — below the trading terminal */}
+      {/* positions / open orders / history - below the trading terminal */}
       <div className="mt-4">
         <PositionsPanel />
       </div>

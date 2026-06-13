@@ -146,7 +146,7 @@ export class ShearEngine {
   // The tradeable relative-value index: the raw ratio with its deviation from the session anchor
   // (ratioOpen = R_0) amplified by PARAMS.volAmpBps. Used everywhere a mark/entry/exit ratio is
   // needed (chart, PnL, liquidation) so the whole engine stays in one amplified frame, exactly
-  // like the on-chain read_ratio. ratioOf stays raw — it's what anchors R_0.
+  // like the on-chain read_ratio. ratioOf stays raw - it's what anchors R_0.
   marked(m: MarketState) {
     return M.amplifyRatio(this.ratioOf(m.base, m.quote), m.ratioOpen);
   }
@@ -313,7 +313,7 @@ export class ShearEngine {
     if (!m) return "Unknown market.";
     if (m.position) return "A position is already open in this market (isolated margin).";
     if (collateral < PARAMS.minCollateral) return `Minimum collateral is ${PARAMS.minCollateral} USDC.`;
-    if (collateral > this.freeCollateral) return "Insufficient free collateral — deposit first.";
+    if (collateral > this.freeCollateral) return "Insufficient free collateral - deposit first.";
     if (leverage < 1 || leverage > PARAMS.maxLeverage) return `Leverage must be 1–${PARAMS.maxLeverage}x.`;
     const n = M.notional(collateral, leverage);
     if (n < PARAMS.minPositionNotional) return `Minimum notional is ${PARAMS.minPositionNotional} USDC.`;
@@ -321,7 +321,7 @@ export class ShearEngine {
     const newShort = m.shortOi + (side === "short" ? n : 0);
     if (newLong + newShort > PARAMS.oiCapAbs) return "OI cap exceeded.";
     if (!M.withinNetUtil(newLong, newShort, this.pool.poolUsdc)) return "Pool net-utilization cap exceeded.";
-    if (this.oracleStale) return "Oracle stale — trade rejected. Retry next tick.";
+    if (this.oracleStale) return "Oracle stale - trade rejected. Retry next tick.";
     return null;
   }
 

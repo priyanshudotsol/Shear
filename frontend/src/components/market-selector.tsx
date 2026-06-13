@@ -17,11 +17,11 @@ export function MarketSelector({ size = "default" }: { size?: "sm" | "default" }
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="secondary" size={size} className="gap-2 font-semibold" />}>
+      <DropdownMenuTrigger render={<Button variant="secondary" size={size} className="gap-2 rounded-none font-semibold" />}>
         {activeMarket}
         <ChevronDown className="h-3.5 w-3.5 opacity-60" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64">
+      <DropdownMenuContent align="start" className="w-64 rounded-none">
         {markets.map((m) => {
           const up = m.ratioChange >= 0;
           return (

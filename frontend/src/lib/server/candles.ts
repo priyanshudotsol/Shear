@@ -1,5 +1,5 @@
 // SERVER-ONLY. Postgres-backed (via Prisma) store for ratio OHLC candles, served by /api/candles.
-// Never import this from client code — it pulls the Prisma client. The /api/candles route is the
+// Never import this from client code - it pulls the Prisma client. The /api/candles route is the
 // only consumer. Postgres runs locally via docker-compose.yml; schema in prisma/schema.prisma.
 import { prisma } from "./prisma";
 
@@ -42,7 +42,7 @@ export async function upsertCandles(base: string, quote: string, resolution: num
 const PYTH_BENCH = "https://benchmarks.pyth.network/v1/shims/tradingview/history";
 const pythSymbol = (asset: string) => `Crypto.${asset.toUpperCase()}/USD`;
 // Pyth's TradingView shim takes intraday resolutions as a minute count, but daily and above as
-// "1D"/"1W" — a raw "1440" is rejected, so map the 24h timeframe to the daily bar.
+// "1D"/"1W" - a raw "1440" is rejected, so map the 24h timeframe to the daily bar.
 const pythResolution = (min: number) => (min >= 1440 ? "1D" : String(min));
 
 interface Bars {

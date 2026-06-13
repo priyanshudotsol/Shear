@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import { GlowBlob } from "@/components/motion";
 
-/** Shared card surface — matches the landing page's soft, rounded panels. */
+/** Shared card surface - matches the landing page's soft, rounded panels. */
 export const PANEL = "rounded-2xl border border-border bg-card/60";
 
 /** Subtle grid + brand glow at the top of a page, tying every route to the landing canvas.

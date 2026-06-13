@@ -13,7 +13,7 @@ export function ShearMark({ className }: { className?: string }) {
 export function Wordmark({ className, glyphClassName }: { className?: string; glyphClassName?: string }) {
   return (
     <span className={cn("inline-flex items-center gap-2 font-semibold tracking-tight", className)}>
-      <span className="grid h-8 w-8 place-items-center rounded-md bg-primary/15 text-primary ring-1 ring-primary/30">
+      <span className="grid h-8 w-8 place-items-center bg-primary/15 text-primary ring-1 ring-primary/30">
         <ShearMark className={cn("h-5 w-5", glyphClassName)} />
       </span>
       <span className="text-[1.05rem] font-semibold tracking-[0.02em]">SHEAR</span>

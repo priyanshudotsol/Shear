@@ -68,7 +68,7 @@ export default function PoolPage() {
       <PageHeader
         eyebrow="Liquidity"
         title="Liquidity pool"
-        subtitle="Real on-chain SOL-ETH pool — the counterparty to every trade. Read live from the deployed program; deposits and withdrawals are real transactions."
+        subtitle="Real on-chain SOL-ETH pool - the counterparty to every trade. Read live from the deployed program; deposits and withdrawals are real transactions."
         action={
           <button
             onClick={refresh}
@@ -127,7 +127,7 @@ export default function PoolPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Collateral mint</span>
-                  <span className="font-mono">{usdcMint ? shortKey(usdcMint, 4) : "—"}</span>
+                  <span className="font-mono">{usdcMint ? shortKey(usdcMint, 4) : "-"}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Your collateral balance</span>
@@ -137,7 +137,7 @@ export default function PoolPage() {
               <p className="mt-3 flex items-start gap-2 text-xs text-muted-foreground">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 The pool settles in <span className="font-medium">Circle devnet USDC</span>
-                ({usdcMint ? shortKey(usdcMint, 4) : "—"}). Deposits move real USDC into the vault and are fully
+                ({usdcMint ? shortKey(usdcMint, 4) : "-"}). Deposits move real USDC into the vault and are fully
                 withdrawable. Need USDC? Get it from Circle&apos;s faucet.
               </p>
               <a
@@ -150,7 +150,7 @@ export default function PoolPage() {
               </a>
             </div>
 
-            {/* deposit / withdraw — real tx */}
+            {/* deposit / withdraw - real tx */}
             <div className="rounded-2xl border border-border bg-card/60 p-4 lg:sticky lg:top-20 lg:self-start">
               <div className="grid grid-cols-2 gap-2 rounded-lg bg-secondary/40 p-1">
                 {(["deposit", "withdraw"] as const).map((t) => (
@@ -200,10 +200,10 @@ export default function PoolPage() {
                 {tab === "deposit" ? (
                   <Row
                     label="Shares minted"
-                    value={pool ? fmtNum(M.sharesForDeposit(n, pool.totalShares, aum), 2) : "—"}
+                    value={pool ? fmtNum(M.sharesForDeposit(n, pool.totalShares, aum), 2) : "-"}
                   />
                 ) : (
-                  <Row label="USDC returned" value={pool ? fmtUsd(M.usdcForShares(n, pool.totalShares, aum)) : "—"} />
+                  <Row label="USDC returned" value={pool ? fmtUsd(M.usdcForShares(n, pool.totalShares, aum)) : "-"} />
                 )}
                 <Row label="NAV / share" value={navPerShare.toFixed(4)} />
               </div>
@@ -226,7 +226,7 @@ export default function PoolPage() {
               </div>
               <p className="mt-2 text-center text-xs text-muted-foreground">
                 {poolDelegated
-                  ? "A live session is on — this briefly pauses trading to settle the pool to L1, then resumes."
+                  ? "A live session is on - this briefly pauses trading to settle the pool to L1, then resumes."
                   : `Signs a real ${tab === "deposit" ? "deposit_liquidity" : "withdraw_liquidity"} transaction on devnet.`}
               </p>
             </div>

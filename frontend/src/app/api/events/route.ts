@@ -4,7 +4,7 @@ import { getEvents, recordEvent, type TradeEventInput } from "@/lib/server/trade
 export const runtime = "nodejs"; // Prisma needs the Node runtime
 export const dynamic = "force-dynamic"; // always serve live DB state
 
-// GET /api/events?owner=<base58>&limit=100 — one wallet's full activity (opens + closes), newest-first.
+// GET /api/events?owner=<base58>&limit=100 - one wallet's full activity (opens + closes), newest-first.
 export async function GET(req: NextRequest) {
   const owner = req.nextUrl.searchParams.get("owner");
   if (!owner) return Response.json({ events: [] });
@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   return Response.json({ events: await getEvents(owner, limit) });
 }
 
-// POST /api/events — record a trade event (used for opens). Idempotent on signature. Registers the
+// POST /api/events - record a trade event (used for opens). Idempotent on signature. Registers the
 // wallet in the Trader registry. Closes go through /api/trades, which emits its own close event.
 export async function POST(req: NextRequest) {
   try {

@@ -160,7 +160,7 @@ function ModifyDialog({ symbol, mode, collateral }: { symbol: string; mode: "add
         <p className="text-sm text-muted-foreground">
           {isAdd
             ? "Lower effective leverage and push liquidation further away."
-            : "Free up margin — keep resulting equity above maintenance."}
+            : "Free up margin - keep resulting equity above maintenance."}
         </p>
         <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/30 p-3 text-sm">
           <span className="text-muted-foreground">{isAdd ? "Free collateral" : "Position collateral"}</span>

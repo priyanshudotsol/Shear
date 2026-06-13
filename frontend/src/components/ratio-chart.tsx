@@ -17,7 +17,7 @@ import { fetchRatioCandles, postLiveCandle, type Candle } from "@/lib/pyth-histo
 const DEFAULT_RESOLUTION_MIN = 60; // 1h candles
 const MAX_CANDLES = 1500;
 
-// Selectable timeframes. `min` is the candle resolution in minutes — also the store/Pyth key
+// Selectable timeframes. `min` is the candle resolution in minutes - also the store/Pyth key
 // (24h = 1440 = daily bars). Each timeframe is a separate row set keyed by resolution in the DB.
 const TIMEFRAMES: { label: string; min: number }[] = [
   { label: "1m", min: 1 },
@@ -28,7 +28,7 @@ const TIMEFRAMES: { label: string; min: number }[] = [
   { label: "24h", min: 1440 },
 ];
 
-// History window per timeframe — enough bars to fill the chart without over-fetching Pyth or
+// History window per timeframe - enough bars to fill the chart without over-fetching Pyth or
 // tripping the store's "thin" backfill on every load.
 const daysFor = (min: number): number => {
   switch (min) {
@@ -41,6 +41,36 @@ const daysFor = (min: number): number => {
     default: return 7;
   }
 };
+
+// Resolve a CSS color expression to a sRGB hex/rgba string. lightweight-charts paints to a canvas
+// and its parser only understands rgb/hex - not oklch/lab/color-mix. Browsers now serialize computed
+// `color` in its own space (e.g. lab()), so we (1) resolve var()/color-mix to a concrete value via a
+// probe element, then (2) round-trip it through a canvas 2D context, which normalizes any CSS Color 4
+// value down to sRGB hex/rgba.
+const resolveColor = (expr: string, fallback = "transparent"): string => {
+  if (typeof window === "undefined") return fallback;
+  const probe = document.createElement("span");
+  probe.style.color = expr;
+  probe.style.display = "none";
+  document.body.appendChild(probe);
+  const computed = getComputedStyle(probe).color;
+  probe.remove();
+  if (!computed) return fallback;
+  const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  if (!ctx) return computed;
+  // Rasterize a single pixel and read the sRGB bytes back - guarantees an rgb()/rgba() value even
+  // when the browser keeps `color` in lab()/oklch() form on both getComputedStyle and fillStyle.
+  ctx.clearRect(0, 0, 1, 1);
+  ctx.fillStyle = computed;
+  ctx.fillRect(0, 0, 1, 1);
+  const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+  return `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)})`;
+};
+// Resolve a theme CSS variable (e.g. "--brand") to an rgb string.
+const themeColor = (name: string): string => resolveColor(`var(${name})`);
+// Blend a theme color with transparency for subtle grid/wick/crosshair tints.
+const themeColorAlpha = (name: string, percent: number): string =>
+  resolveColor(`color-mix(in oklch, var(${name}) ${percent}%, transparent)`);
 
 const cacheKey = (base: string, quote: string, res: number) => `shear:candles:${base}-${quote}:${res}`;
 
@@ -67,11 +97,11 @@ function saveCache(base: string, quote: string, res: number, candles: Candle[]) 
 interface Props {
   base: string; // e.g. "SOL"
   quote: string; // e.g. "ETH"
-  liveRatio?: number; // current ratio — updates the forming candle so the chart is live
+  liveRatio?: number; // current ratio - updates the forming candle so the chart is live
   entryRatio?: number | null;
   liqRatio?: number | null;
   height?: number;
-  /** When set, zoom to the most recent N candles instead of fitting the full range — gives candles
+  /** When set, zoom to the most recent N candles instead of fitting the full range - gives candles
    *  a readable width in narrow containers (e.g. the landing teaser) rather than a dense strip. */
   visibleBars?: number;
   /** Show the 1m/5m/.../24h timeframe selector. Off for compact embeds (e.g. landing teaser). */
@@ -110,27 +140,27 @@ export function RatioChart({ base, quote, liveRatio, entryRatio, liqRatio, heigh
       height,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "rgba(180,190,205,0.65)",
+        textColor: themeColor("--muted-foreground"),
         fontFamily: "var(--font-geist-mono), monospace",
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: "rgba(120,135,160,0.06)" },
-        horzLines: { color: "rgba(120,135,160,0.08)" },
+        vertLines: { color: themeColorAlpha("--border", 60) },
+        horzLines: { color: themeColorAlpha("--border", 80) },
       },
-      rightPriceScale: { borderColor: "rgba(120,135,160,0.12)" },
-      timeScale: { borderColor: "rgba(120,135,160,0.12)", timeVisible: true, secondsVisible: false, rightOffset: 4 },
+      rightPriceScale: { borderColor: themeColor("--border") },
+      timeScale: { borderColor: themeColor("--border"), timeVisible: true, secondsVisible: false, rightOffset: 4 },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: "rgba(120,200,220,0.4)", width: 1, style: LineStyle.Dotted, labelBackgroundColor: "#0c1116" },
-        horzLine: { color: "rgba(120,200,220,0.4)", labelBackgroundColor: "#0c1116" },
+        vertLine: { color: themeColorAlpha("--brand", 45), width: 1, style: LineStyle.Dotted, labelBackgroundColor: themeColor("--brand") },
+        horzLine: { color: themeColorAlpha("--brand", 45), labelBackgroundColor: themeColor("--brand") },
       },
     });
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: "rgba(86,204,142,1)",
-      downColor: "rgba(230,90,90,1)",
-      wickUpColor: "rgba(86,204,142,0.7)",
-      wickDownColor: "rgba(230,90,90,0.7)",
+      upColor: themeColor("--up"),
+      downColor: themeColor("--down"),
+      wickUpColor: themeColorAlpha("--up", 70),
+      wickDownColor: themeColorAlpha("--down", 70),
       borderVisible: false,
       priceFormat: { type: "price", precision: 5, minMove: 0.00001 },
     });
@@ -166,7 +196,7 @@ export function RatioChart({ base, quote, liveRatio, entryRatio, liqRatio, heigh
     };
 
     const cached = loadCache(base, quote, resolutionMin);
-    render(cached.length ? cached : []); // instant — survives refresh; clears stale timeframe on switch
+    render(cached.length ? cached : []); // instant - survives refresh; clears stale timeframe on switch
 
     (async () => {
       const fresh = await fetchRatioCandles(base, quote, resolutionMin, daysFor(resolutionMin));
@@ -222,7 +252,7 @@ export function RatioChart({ base, quote, liveRatio, entryRatio, liqRatio, heigh
     if (entryRatio && entryRatio > 0) {
       entryLineRef.current = s.createPriceLine({
         price: entryRatio,
-        color: "rgba(180,190,205,0.7)",
+        color: themeColor("--muted-foreground"),
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
         axisLabelVisible: true,
@@ -232,7 +262,7 @@ export function RatioChart({ base, quote, liveRatio, entryRatio, liqRatio, heigh
     if (liqRatio && liqRatio > 0) {
       liqLineRef.current = s.createPriceLine({
         price: liqRatio,
-        color: "rgba(230,90,90,0.85)",
+        color: themeColorAlpha("--down", 85),
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
         axisLabelVisible: true,

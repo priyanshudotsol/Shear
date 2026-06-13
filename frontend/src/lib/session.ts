@@ -1,6 +1,6 @@
 "use client";
 
-// Per-wallet local "session key" — a keypair kept in localStorage that signs ER trades so the
+// Per-wallet local "session key" - a keypair kept in localStorage that signs ER trades so the
 // browser wallet (Phantom) never has to sign an ephemeral-rollup transaction (which it can't
 // simulate against devnet and would warn/block on). The owner authorizes it once on L1 via the
 // program's `set_session_key`, after which open/close/etc. are signed by this key with no popups.
@@ -18,7 +18,7 @@ export function getSessionKeypair(owner: PublicKey): Keypair {
       try {
         return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(stored)));
       } catch {
-        /* corrupt entry — regenerate below */
+        /* corrupt entry - regenerate below */
       }
     }
   }

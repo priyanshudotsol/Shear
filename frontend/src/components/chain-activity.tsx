@@ -61,7 +61,7 @@ function Row({ e }: { e: ChainEvent }) {
   return <div className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm">{inner}</div>;
 }
 
-// Only trade events — opens, closes, liquidations, margin changes (no funding crank
+// Only trade events - opens, closes, liquidations, margin changes (no funding crank
 // or generic/unparsed program txs).
 const TRADE_LABELS = new Set(["Position opened", "Position closed", "Margin adjusted", "Liquidation"]);
 

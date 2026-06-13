@@ -1,5 +1,5 @@
 // SERVER-ONLY. Postgres-backed (via Prisma) durable trade history + wallet registry, served by
-// /api/trades and /api/activity. Never import from client code — it pulls the Prisma client.
+// /api/trades and /api/activity. Never import from client code - it pulls the Prisma client.
 // Live market/pool/position state is NOT stored here; it stays authoritative on-chain.
 import { prisma } from "./prisma";
 
@@ -64,7 +64,7 @@ async function writeEvent(tx: Tx, e: TradeEventInput): Promise<void> {
 }
 
 // Upsert the trade (idempotent by [owner, id]) and recompute the wallet's aggregates from the Trade
-// table in the same transaction — recompute, not increment, so a re-POSTed trade can't double-count.
+// table in the same transaction - recompute, not increment, so a re-POSTed trade can't double-count.
 export async function recordTrade(t: TradeInput): Promise<void> {
   const data = {
     symbol: t.symbol,

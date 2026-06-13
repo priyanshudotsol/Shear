@@ -41,57 +41,66 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
 }
 
-/* SHEAR — premium dark quant-fintech theme. Dark by default. */
+/* SHEAR - Loyal-inspired dark theme: neutral charcoal canvas, vivid red brand (#f9363c). */
 :root {
-  --radius: 0.75rem;
+  --radius: 0rem;
 
-  --background: oklch(0.16 0.012 248);
-  --foreground: oklch(0.97 0.005 240);
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
 
-  --card: oklch(0.205 0.014 248);
-  --card-foreground: oklch(0.97 0.005 240);
-  --popover: oklch(0.205 0.014 248);
-  --popover-foreground: oklch(0.97 0.005 240);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
 
-  --primary: oklch(0.82 0.13 195);
-  --primary-foreground: oklch(0.18 0.02 220);
-  --secondary: oklch(0.27 0.018 248);
-  --secondary-foreground: oklch(0.96 0.005 240);
-  --muted: oklch(0.25 0.015 248);
-  --muted-foreground: oklch(0.68 0.018 245);
-  --accent: oklch(0.3 0.03 220);
-  --accent-foreground: oklch(0.97 0.005 240);
-  --destructive: oklch(0.62 0.21 18);
+  --primary: oklch(0.625 0.232 22);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.625 0.232 22);
 
-  --border: oklch(0.3 0.016 248);
-  --input: oklch(0.3 0.016 248);
-  --ring: oklch(0.82 0.13 195);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.625 0.232 22);
 
-  /* trading semantics */
-  --up: oklch(0.78 0.16 158);
-  --up-foreground: oklch(0.16 0.02 160);
-  --down: oklch(0.66 0.2 18);
-  --down-foreground: oklch(0.98 0 0);
-  --brand: oklch(0.82 0.13 195);
-  --brand-foreground: oklch(0.18 0.02 220);
+  /* trading semantics - tuned for a dark canvas */
+  --up: oklch(0.76 0.17 152);
+  --up-foreground: oklch(0.145 0 0);
+  --down: oklch(0.625 0.232 22);
+  --down-foreground: oklch(0.985 0 0);
+  --brand: oklch(0.625 0.232 22);
+  --brand-foreground: oklch(0.985 0 0);
 
-  --chart-1: oklch(0.82 0.13 195);
-  --chart-2: oklch(0.78 0.16 158);
+  --chart-1: oklch(0.625 0.232 22);
+  --chart-2: oklch(0.76 0.17 152);
   --chart-3: oklch(0.7 0.15 50);
-  --chart-4: oklch(0.66 0.2 18);
-  --chart-5: oklch(0.72 0.12 280);
+  --chart-4: oklch(0.62 0.2 280);
+  --chart-5: oklch(0.708 0 0);
 }
 
 @layer base {
   * {
     @apply border-border;
+  }
+  /* SHEAR is a fully squared-off theme - no roundness anywhere, regardless of utility classes,
+     arbitrary radii, or third-party widget styles (wallet-adapter, sonner, charts). */
+  *,
+  *::before,
+  *::after {
+    border-radius: 0 !important;
   }
   body {
     @apply bg-background text-foreground;
@@ -137,7 +146,7 @@
     color: transparent;
   }
   /* Nav glass: tinted with the PAGE background (not the lighter card) so the bar reads as the same
-     surface as the page — translucent + blurred rather than a floating gray band. */
+     surface as the page - translucent + blurred rather than a floating gray band. */
   .glass {
     background: color-mix(in oklch, var(--background) 72%, transparent);
     backdrop-filter: blur(14px) saturate(140%);

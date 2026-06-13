@@ -2,7 +2,7 @@
 
 // DB-backed activity feed. With no `owner` it renders the global feed (/api/activity = recent events
 // across all wallets); with an `owner` it renders that wallet's activity (/api/events?owner=). Events
-// are the persisted trade log (opens + closes + liquidations) — see src/lib/server/trades.ts.
+// are the persisted trade log (opens + closes + liquidations) - see src/lib/server/trades.ts.
 
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMarket } from "@/context/market";
-import { RatioChart } from "@/components/ratio-chart";
+import { TvChart } from "@/components/tv-chart";
 import { fmtRatio, fmtPct, fmtPctRaw } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -30,8 +30,8 @@ export function LiveTeaser() {
           </div>
         </div>
       </div>
-      <div className="-mx-2">
-        <RatioChart base={base} quote={quote} liveRatio={ratio} height={200} visibleBars={48} />
+      <div className="-mx-3 -mb-2 overflow-hidden">
+        <TvChart base={base} quote={quote} liveRatio={ratio} height={240} minimal />
       </div>
       <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
     </div>

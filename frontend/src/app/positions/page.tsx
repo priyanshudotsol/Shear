@@ -69,7 +69,7 @@ export default function PositionsPage() {
         ) : positions.length === 0 ? (
           <Empty
             title="No open positions"
-            body="Open a ratio perp on SOL-ETH to get started — hold up to 8 longs/shorts at once."
+            body="Open a ratio perp on SOL-ETH to get started - hold up to 8 longs/shorts at once."
             action={
               <Button render={<Link href="/trade" />} nativeButton={false} className="gap-2">
                 Open a position <ArrowRight className="h-4 w-4" />

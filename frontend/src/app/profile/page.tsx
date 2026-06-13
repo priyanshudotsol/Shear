@@ -57,7 +57,7 @@ export default function ProfilePage() {
 
           <h1 className="relative mt-6 text-2xl font-semibold tracking-tight">Connect your wallet</h1>
           <p className="relative mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
-            Your trade history, realized PnL and performance stats are tied to your wallet — connect to see your full profile.
+            Your trade history, realized PnL and performance stats are tied to your wallet - connect to see your full profile.
           </p>
 
           <div className="relative mt-6 flex justify-center">
@@ -134,14 +134,14 @@ export default function ProfilePage() {
         </div>
       </Reveal>
 
-      {/* account breakdown — real chain state */}
+      {/* account breakdown - real chain state */}
       <Reveal delay={0.05} className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <BalanceCard icon={Wallet} label="Wallet balance" value={fmtUsd(walletUsdc)} sub="USDC (devnet)" />
         <BalanceCard icon={Coins} label="Free collateral" value={fmtUsd(free)} sub="deposited, unlocked" />
         <BalanceCard
           icon={Activity}
           label="Open positions"
-          value={chain.positions.length ? <PnlText value={openEquity} withSign={false} /> : "—"}
+          value={chain.positions.length ? <PnlText value={openEquity} withSign={false} /> : "-"}
           sub={chain.positions.length ? `${chain.positions.length} open · live equity` : "no open positions"}
         />
         <BalanceCard icon={Layers} label="LP value" value={fmtUsd(lpValue)} sub={`${fmtNum(chain.lpShares, 2)} shares`} />

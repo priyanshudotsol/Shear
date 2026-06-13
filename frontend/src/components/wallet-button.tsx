@@ -30,7 +30,7 @@ export function WalletButton({ size = "default" }: { size?: "sm" | "default" | "
   }
 
   const addr = publicKey.toBase58();
-  const fmt = (n: number | null, dp: number) => (n === null ? "—" : n.toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp }));
+  const fmt = (n: number | null, dp: number) => (n === null ? "-" : n.toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp }));
 
   return (
     <DropdownMenu>
