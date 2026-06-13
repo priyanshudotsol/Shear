@@ -36,9 +36,11 @@ yarn-error.log*
 # vercel
 .vercel
 
-# TradingView Charting Library (proprietary, ~26MB) - not redistributable in a public repo.
-# Required at runtime by the chart; provide it on the deploy host separately (see README).
-/public/charting_library/
+# TradingView Charting Library (proprietary, ~26MB of JS) - not redistributable in a public repo;
+# provide the runtime bundle on the deploy host separately. We DO commit charting_library.d.ts so the
+# type-only import in tv-chart.tsx / tv-datafeed.ts type-checks on CI without the full bundle.
+/public/charting_library/*
+!/public/charting_library/charting_library.d.ts
 
 # typescript
 *.tsbuildinfo
