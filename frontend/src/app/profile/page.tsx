@@ -6,14 +6,15 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useMarket } from "@/context/market";
 import { WalletButton } from "@/components/wallet-button";
 import { Button } from "@/components/ui/button";
-import { Stat, PnlText } from "@/components/common";
+import { PnlText, PageBackdrop } from "@/components/common";
+import { Reveal } from "@/components/motion";
 import { EventFeed } from "@/components/event-feed";
 import { getTrades, hydrateTrades, tradeStats, type ClosedTrade } from "@/lib/trade-log";
 import * as M from "@/lib/shear-math";
 import { fmtUsd, fmtUsdSigned, fmtPctRaw, fmtRatio, fmtNum, shortKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Copy, UserRound, ArrowRight, Trophy, Flame, TrendingUp, Wallet } from "lucide-react";
+import { Copy, UserRound, ArrowRight, Trophy, Flame, TrendingUp, Wallet, Coins, Activity, Layers } from "lucide-react";
 
 function Identicon({ seed, className }: { seed: string; className?: string }) {
   let h = 0;
@@ -45,7 +46,8 @@ export default function ProfilePage() {
 
   if (!connected || !publicKey) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-20 sm:px-6">
+      <div className="relative mx-auto max-w-3xl px-4 py-20 sm:px-6">
+        <PageBackdrop />
         <div className="flex flex-col items-center rounded-2xl border border-dashed border-border py-16 text-center">
           <div className="grid h-12 w-12 place-items-center rounded-full bg-secondary text-muted-foreground">
             <Wallet className="h-6 w-6" />
@@ -89,10 +91,14 @@ export default function ProfilePage() {
   const pnlSplit = s.totalProfit + lossAbs;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <div className="relative mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <PageBackdrop />
       {/* header */}
-      <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card/70 p-5 sm:flex-row sm:items-center">
-        <Identicon seed={addr} className="h-16 w-16 shrink-0" />
+      <Reveal className="relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-border bg-card/60 p-5 shadow-sm sm:flex-row sm:items-center">
+        <div className="pointer-events-none absolute -left-16 -top-20 h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
+        <div className="relative shrink-0">
+          <Identicon seed={addr} className="h-16 w-16 ring-1 ring-white/10" />
+        </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="truncate font-mono text-lg font-semibold">{shortKey(addr, 6)}</h1>
@@ -112,47 +118,40 @@ export default function ProfilePage() {
             {s.firstTradeTs && <span>Trading since {new Date(s.firstTradeTs * 1000).toLocaleDateString()}</span>}
           </div>
         </div>
-        <div className="text-right">
+        <div className="relative text-right">
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Account value</div>
-          <div className="font-mono text-2xl font-semibold tnum">{fmtUsd(accountTotal)}</div>
+          <div className="mt-0.5 font-mono text-3xl font-semibold tnum">{fmtUsd(accountTotal)}</div>
         </div>
-      </div>
+      </Reveal>
 
       {/* account breakdown — real chain state */}
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-border bg-card/70 p-4">
-          <Stat label="Wallet balance" value={fmtUsd(walletUsdc)} sub="USDC (devnet)" />
-        </div>
-        <div className="rounded-xl border border-border bg-card/70 p-4">
-          <Stat label="Free collateral" value={fmtUsd(free)} sub="deposited, unlocked" />
-        </div>
-        <div className="rounded-xl border border-border bg-card/70 p-4">
-          <Stat
-            label="Open positions"
-            value={chain.positions.length ? <PnlText value={openEquity} withSign={false} /> : "—"}
-            sub={chain.positions.length ? `${chain.positions.length} open · live equity` : "no open positions"}
-          />
-        </div>
-        <div className="rounded-xl border border-border bg-card/70 p-4">
-          <Stat label="LP value" value={fmtUsd(lpValue)} sub={`${fmtNum(chain.lpShares, 2)} shares`} />
-        </div>
-      </div>
+      <Reveal delay={0.05} className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <BalanceCard icon={Wallet} label="Wallet balance" value={fmtUsd(walletUsdc)} sub="USDC (devnet)" />
+        <BalanceCard icon={Coins} label="Free collateral" value={fmtUsd(free)} sub="deposited, unlocked" />
+        <BalanceCard
+          icon={Activity}
+          label="Open positions"
+          value={chain.positions.length ? <PnlText value={openEquity} withSign={false} /> : "—"}
+          sub={chain.positions.length ? `${chain.positions.length} open · live equity` : "no open positions"}
+        />
+        <BalanceCard icon={Layers} label="LP value" value={fmtUsd(lpValue)} sub={`${fmtNum(chain.lpShares, 2)} shares`} />
+      </Reveal>
 
       {/* performance stats */}
-      <h2 className="mt-8 mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Performance</h2>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <SectionTitle className="mt-8 mb-3">Performance</SectionTitle>
+      <Reveal className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <Metric label="Trades" value={fmtNum(s.trades)} />
         <Metric label="Win rate" value={fmtPctRaw(s.winRate, 0)} accent={s.winRate >= 0.5 && s.trades > 0 ? "up" : undefined} />
         <Metric label="Realized PnL" value={fmtUsdSigned(s.realizedPnl)} accent={s.trades === 0 ? undefined : pnlPositive ? "up" : "down"} />
         <Metric label="Volume" value={fmtUsd(s.volume, 0)} />
         <Metric label="Avg / trade" value={fmtUsdSigned(s.avgPnl)} accent={s.trades === 0 ? undefined : s.avgPnl >= 0 ? "up" : "down"} />
         <Metric label="Liquidations" value={fmtNum(s.liquidations)} accent={s.liquidations > 0 ? "down" : undefined} />
-      </div>
+      </Reveal>
 
       {/* pnl + side split */}
       {s.trades > 0 && (
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <div className="rounded-xl border border-border bg-card/70 p-5">
+        <Reveal delay={0.05} className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-border bg-card/60 p-5">
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
               <TrendingUp className="h-4 w-4 text-primary" /> Profit vs loss
             </div>
@@ -178,7 +177,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-border bg-card/70 p-5">
+          <div className="rounded-2xl border border-border bg-card/60 p-5">
             <div className="mb-3 text-sm font-semibold">Direction & costs</div>
             <div className="flex h-2.5 overflow-hidden rounded-full bg-secondary">
               <div className="bg-up/70" style={{ width: `${s.trades ? (s.longCount / s.trades) * 100 : 0}%` }} />
@@ -199,30 +198,34 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-        </div>
+        </Reveal>
       )}
 
       {/* recent activity (opens + closes) from the DB event log */}
       <div className="mt-8">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Recent activity</h2>
-        <div className="mt-3 rounded-xl border border-border bg-card/70 p-2">
+        <SectionTitle>Recent activity</SectionTitle>
+        <div className="mt-3 rounded-2xl border border-border bg-card/60 p-2">
           <EventFeed owner={addr} limit={12} />
         </div>
       </div>
 
       {/* trade history */}
-      <div className="mt-8 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Trade history</h2>
-        <Button render={<Link href="/trade" />} nativeButton={false} variant="secondary" size="sm" className="gap-2">
-          New trade <ArrowRight className="h-4 w-4" />
-        </Button>
-      </div>
+      <SectionTitle
+        className="mt-8"
+        action={
+          <Button render={<Link href="/trade" />} nativeButton={false} variant="secondary" size="sm" className="gap-2">
+            New trade <ArrowRight className="h-4 w-4" />
+          </Button>
+        }
+      >
+        Trade history
+      </SectionTitle>
       {history.length === 0 ? (
-        <p className="mt-3 rounded-xl border border-dashed border-border py-12 text-center text-sm text-muted-foreground">
+        <p className="mt-3 rounded-2xl border border-dashed border-border py-12 text-center text-sm text-muted-foreground">
           No trades yet. Close a position and it&apos;ll be recorded here with its realized PnL.
         </p>
       ) : (
-        <div className="mt-3 overflow-x-auto rounded-xl border border-border">
+        <div className="mt-3 overflow-x-auto rounded-2xl border border-border">
           <table className="w-full text-sm">
             <thead className="bg-secondary/40 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
@@ -236,7 +239,7 @@ export default function ProfilePage() {
             </thead>
             <tbody>
               {history.map((h) => (
-                <tr key={h.id} className="border-t border-border/60">
+                <tr key={h.id} className="border-t border-border/60 transition-colors hover:bg-secondary/20">
                   <td className="px-4 py-3 text-muted-foreground">
                     {new Date(h.closedTs * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                     <span className="ml-1 opacity-50">
@@ -275,11 +278,54 @@ export default function ProfilePage() {
 
 function Metric({ label, value, accent }: { label: string; value: string; accent?: "up" | "down" }) {
   return (
-    <div className="rounded-xl border border-border bg-card/70 p-4">
+    <div className="rounded-2xl border border-border bg-card/60 p-4 transition-colors hover:border-primary/40">
       <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className={cn("mt-1.5 font-mono text-xl font-semibold tnum", accent === "up" && "text-up", accent === "down" && "text-down")}>
         {value}
       </div>
+    </div>
+  );
+}
+
+function BalanceCard({
+  icon: Icon,
+  label,
+  value,
+  sub,
+}: {
+  icon: typeof Wallet;
+  label: string;
+  value: React.ReactNode;
+  sub?: string;
+}) {
+  return (
+    <div className="group rounded-2xl border border-border bg-card/60 p-4 transition-colors hover:border-primary/40 hover:bg-card">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+        <Icon className="h-3.5 w-3.5 text-muted-foreground/50 transition-colors group-hover:text-primary" />
+      </div>
+      <div className="mt-2 font-mono text-xl font-semibold tnum">{value}</div>
+      {sub && <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>}
+    </div>
+  );
+}
+
+function SectionTitle({
+  children,
+  action,
+  className,
+}: {
+  children: React.ReactNode;
+  action?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex items-center justify-between gap-3", className)}>
+      <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        <span className="h-3.5 w-1 rounded-full bg-primary/70" />
+        {children}
+      </h2>
+      {action}
     </div>
   );
 }

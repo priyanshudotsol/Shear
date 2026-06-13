@@ -6,7 +6,8 @@ import { useWallet, useAnchorWallet } from "@solana/wallet-adapter-react";
 import { WalletButton } from "@/components/wallet-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Stat } from "@/components/common";
+import { Stat, PageBackdrop, PageHeader } from "@/components/common";
+import { Reveal } from "@/components/motion";
 import { useMarket } from "@/context/market";
 import { ONCHAIN_MARKET } from "@/lib/use-chain-data";
 import { CIRCLE_FAUCET_URL } from "@/lib/constants";
@@ -62,22 +63,21 @@ export default function PoolPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Liquidity pool</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Real on-chain SOL-ETH pool — the counterparty to every trade. Read live from the deployed program;
-            deposits and withdrawals are real transactions.
-          </p>
-        </div>
-        <button
-          onClick={refresh}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} /> Refresh
-        </button>
-      </div>
+    <div className="relative mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <PageBackdrop />
+      <PageHeader
+        eyebrow="Liquidity"
+        title="Liquidity pool"
+        subtitle="Real on-chain SOL-ETH pool — the counterparty to every trade. Read live from the deployed program; deposits and withdrawals are real transactions."
+        action={
+          <button
+            onClick={refresh}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} /> Refresh
+          </button>
+        }
+      />
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
         <span className="inline-flex items-center gap-1.5 rounded bg-secondary px-2 py-1 text-muted-foreground">
@@ -89,13 +89,13 @@ export default function PoolPage() {
       </div>
 
       {error || (!loading && !pool) ? (
-        <div className="mt-6 rounded-xl border border-dashed border-border py-12 text-center text-sm text-muted-foreground">
+        <div className="mt-6 rounded-2xl border border-dashed border-border py-12 text-center text-sm text-muted-foreground">
           Couldn&apos;t read the on-chain pool right now (it lives on the MagicBlock ER). Hit refresh shortly.
         </div>
       ) : (
         <>
           {/* real metrics */}
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Reveal className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard icon={Layers} label="Pool AUM" value={fmtUsd(aum, 0)} sub={`${fmtCompact(pool?.totalShares ?? 0)} shares`} />
             <MetricCard icon={TrendingUp} label="NAV / share" value={navPerShare.toFixed(4)} sub="USDC per share" />
             <MetricCard
@@ -106,11 +106,11 @@ export default function PoolPage() {
               warn={util > 0.45}
             />
             <MetricCard icon={ShieldCheck} label="Insurance fund" value={fmtUsd(pool?.insuranceFund ?? 0, 0)} sub="bad-debt backstop" />
-          </div>
+          </Reveal>
 
-          <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_360px]">
+          <Reveal delay={0.05} className="mt-6 grid gap-4 lg:grid-cols-[1fr_360px]">
             {/* your position */}
-            <div className="rounded-xl border border-border bg-card/70 p-5">
+            <div className="rounded-2xl border border-border bg-card/60 p-5">
               <h2 className="text-sm font-semibold">Your position</h2>
               <div className="mt-4 grid grid-cols-2 gap-5 sm:grid-cols-3">
                 <Stat label="Your shares" value={fmtNum(lpShares, 2)} />
@@ -151,7 +151,7 @@ export default function PoolPage() {
             </div>
 
             {/* deposit / withdraw — real tx */}
-            <div className="rounded-xl border border-border bg-card/70 p-4 lg:sticky lg:top-20 lg:self-start">
+            <div className="rounded-2xl border border-border bg-card/60 p-4 lg:sticky lg:top-20 lg:self-start">
               <div className="grid grid-cols-2 gap-2 rounded-lg bg-secondary/40 p-1">
                 {(["deposit", "withdraw"] as const).map((t) => (
                   <button
@@ -230,7 +230,7 @@ export default function PoolPage() {
                   : `Signs a real ${tab === "deposit" ? "deposit_liquidity" : "withdraw_liquidity"} transaction on devnet.`}
               </p>
             </div>
-          </div>
+          </Reveal>
         </>
       )}
     </div>
@@ -251,7 +251,7 @@ function MetricCard({
   warn?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card/70 p-4">
+    <div className="rounded-2xl border border-border bg-card/60 p-4">
       <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         <Icon className="h-3.5 w-3.5" /> {label}
       </div>

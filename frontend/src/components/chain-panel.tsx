@@ -27,7 +27,7 @@ export function ChainPanel() {
   const p0 = positions[0];
 
   return (
-    <div className="rounded-2xl border border-border bg-card/70 p-5">
+    <div className="rounded-2xl border border-border bg-card/60 p-5">
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Database className="h-4 w-4 text-primary" />
         <h2 className="text-sm font-semibold">Live on-chain · {ONCHAIN_MARKET}</h2>

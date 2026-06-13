@@ -7,6 +7,7 @@ import { MarketStatsBar, OpenInterest } from "@/components/trade/market-stats";
 import { PositionsPanel } from "@/components/trade/positions-panel";
 import { EventFeed } from "@/components/event-feed";
 import { ErBadge } from "@/components/status-badges";
+import { PageBackdrop } from "@/components/common";
 import { Activity } from "lucide-react";
 import * as M from "@/lib/shear-math";
 
@@ -19,12 +20,13 @@ export default function TradePage() {
     : null;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+    <div className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6">
+      <PageBackdrop />
       <MarketStatsBar />
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_360px]">
         {/* chart */}
-        <div className="flex flex-col rounded-xl border border-border bg-card/70">
+        <div className="flex flex-col rounded-2xl border border-border bg-card/60">
           <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
             <div className="flex items-center gap-2 text-sm">
               <span className="font-semibold">{symbol}</span>
@@ -50,7 +52,7 @@ export default function TradePage() {
         {/* order panel + live activity */}
         <div className="space-y-4">
           <OrderPanel />
-          <div className="rounded-xl border border-border bg-card/70">
+          <div className="rounded-2xl border border-border bg-card/60">
             <div className="flex items-center gap-2 border-b border-border/60 px-4 py-3 text-sm">
               <Activity className="h-3.5 w-3.5 text-primary" />
               <span className="font-semibold">Recent activity</span>

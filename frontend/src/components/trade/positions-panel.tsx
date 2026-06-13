@@ -64,7 +64,7 @@ export function PositionsPanel() {
   ];
 
   return (
-    <div className="rounded-xl border border-border bg-card/70">
+    <div className="rounded-2xl border border-border bg-card/60">
       {/* tab bar */}
       <div className="flex items-center justify-between border-b border-border/60 px-4">
         <div className="flex items-center gap-1">

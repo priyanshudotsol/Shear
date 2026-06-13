@@ -7,7 +7,8 @@ import { useWallet, useAnchorWallet } from "@solana/wallet-adapter-react";
 import { useMarket, type MarketSnap } from "@/context/market";
 import { WalletButton } from "@/components/wallet-button";
 import { Button } from "@/components/ui/button";
-import { Stat, PnlText } from "@/components/common";
+import { Stat, PnlText, PageBackdrop, PageHeader } from "@/components/common";
+import { Reveal } from "@/components/motion";
 import type { ChainData } from "@/lib/use-chain-data";
 import type { ChainPosition } from "@/lib/chain";
 import { closePositionER, settleAndWithdraw } from "@/lib/chain-trade";
@@ -49,18 +50,18 @@ export default function PositionsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Positions</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Isolated margin · up to 8 concurrent positions · settled against the LP pool · live on the MagicBlock ER.
-          </p>
-        </div>
-        <Button render={<Link href="/trade" />} nativeButton={false} variant="secondary" size="sm" className="gap-2">
-          Trade <ArrowRight className="h-4 w-4" />
-        </Button>
-      </div>
+    <div className="relative mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <PageBackdrop />
+      <PageHeader
+        eyebrow="Portfolio"
+        title="Positions"
+        subtitle="Isolated margin · up to 8 concurrent positions · settled against the LP pool · live on the MagicBlock ER."
+        action={
+          <Button render={<Link href="/trade" />} nativeButton={false} variant="secondary" size="sm" className="gap-2">
+            Trade <ArrowRight className="h-4 w-4" />
+          </Button>
+        }
+      />
 
       <div className="mt-6">
         {!connected ? (
@@ -76,7 +77,7 @@ export default function PositionsPage() {
             }
           />
         ) : (
-          <div className="space-y-4">
+          <Reveal className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">{positions.length} open position{positions.length > 1 ? "s" : ""}</span>
               <Button onClick={withdrawAll} disabled={!!busy} variant="secondary" size="sm">
@@ -86,7 +87,7 @@ export default function PositionsPage() {
             {positions.map((p) => (
               <RealPositionCard key={p.slot} pos={p} active={active} chain={chain} disabled={!!busy} />
             ))}
-          </div>
+          </Reveal>
         )}
       </div>
     </div>
@@ -129,7 +130,7 @@ function RealPositionCard({ pos: p, active, chain, disabled }: { pos: ChainPosit
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card/70">
+    <div className="overflow-hidden rounded-2xl border border-border bg-card/60">
       <div className="flex items-center justify-between border-b border-border/60 px-5 py-3">
         <div className="flex items-center gap-3">
           <span className={cn("rounded-md px-2 py-1 text-xs font-bold uppercase tracking-wide", long ? "bg-up/15 text-up" : "bg-down/15 text-down")}>
@@ -166,7 +167,7 @@ function RealPositionCard({ pos: p, active, chain, disabled }: { pos: ChainPosit
 
 function Empty({ title, body, action }: { title: string; body: string; action: React.ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-16 text-center">
       <div className="grid h-12 w-12 place-items-center rounded-full bg-secondary text-muted-foreground">
         <Inbox className="h-6 w-6" />
       </div>

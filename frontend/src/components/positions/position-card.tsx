@@ -39,7 +39,7 @@ export function PositionCard({ market }: { market: MarketSnap }) {
   const long = p.side === "long";
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card/70">
+    <div className="overflow-hidden rounded-2xl border border-border bg-card/60">
       <div className="flex items-center justify-between border-b border-border/60 px-5 py-3">
         <div className="flex items-center gap-3">
           <span

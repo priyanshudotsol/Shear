@@ -76,7 +76,7 @@ export function OrderPanel() {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card/70 p-4">
+    <div className="rounded-2xl border border-border bg-card/60 p-4">
       {/* side toggle */}
       <div className="grid grid-cols-2 gap-2 rounded-lg bg-secondary/40 p-1">
         <button

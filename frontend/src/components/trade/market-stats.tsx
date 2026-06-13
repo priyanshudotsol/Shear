@@ -15,7 +15,7 @@ export function MarketStatsBar() {
   const util = chain.pool ? M.netUtilization(longOi, shortOi, chain.pool.poolUsdc) : 0;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-xl border border-border bg-card/70 px-4 py-3">
+    <div className="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-2xl border border-border bg-card/60 px-4 py-3">
       <div className="flex items-center gap-3">
         <MarketSelector />
         <div className="hidden sm:block">
@@ -70,7 +70,7 @@ export function OpenInterest() {
   const total = longOi + shortOi;
   const longPct = total > 0 ? (longOi / total) * 100 : 50;
   return (
-    <div className="rounded-xl border border-border bg-card/70 p-4">
+    <div className="rounded-2xl border border-border bg-card/60 p-4">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold">Open interest · {active.symbol}</h3>
         <span className="font-mono text-xs text-muted-foreground">{fmtUsd(total, 0)}</span>
