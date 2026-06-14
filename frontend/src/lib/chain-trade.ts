@@ -36,9 +36,11 @@ const symbol16 = (symbol: string): number[] => {
   return Array.from(b);
 };
 
-// Session key needs a little SOL on the ER to pay fees; top up when it dips below the floor.
-const SESSION_KEY_FLOOR = 0.015 * LAMPORTS_PER_SOL;
-const SESSION_KEY_TOPUP = 0.04 * LAMPORTS_PER_SOL;
+// Session key needs SOL to pay ER fees; top up when it dips below the floor. The top-up is sized
+// generously so it lasts many trades — each refill is a wallet popup, so fewer refills = fewer
+// interruptions mid-session.
+const SESSION_KEY_FLOOR = 0.02 * LAMPORTS_PER_SOL;
+const SESSION_KEY_TOPUP = 0.2 * LAMPORTS_PER_SOL;
 
 if (typeof window !== "undefined") {
   (window as unknown as { Buffer: typeof Buffer }).Buffer ??= Buffer;
@@ -47,6 +49,16 @@ if (typeof window !== "undefined") {
 const toBase = (usdc: number) => new BN(Math.round(usdc * 1e6));
 const SOL_USD = new PublicKey(FEEDS.solUsd);
 const ETH_USD = new PublicKey(FEEDS.ethUsd);
+const MAGIC_PROGRAM = new PublicKey("Magic11111111111111111111111111111111111111");
+
+// Deterministic, per-trader MagicBlock task id (offset past the funding crank's task_id=1).
+// 6 bytes of the owner key fit safely in a JS number; modulo keeps it bounded.
+function liqTaskId(owner: PublicKey): BN {
+  const b = owner.toBytes();
+  let n = 0;
+  for (let i = 0; i < 6; i++) n = n * 256 + b[i];
+  return new BN(1000 + (n % 1_000_000_000));
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function program(wallet: SignerWallet, conn = baseConn): any {
@@ -165,12 +177,30 @@ async function signSendL1(wallet: SignerWallet, ixs: TransactionInstruction[], l
   return sendChecked(baseConn, signed.serialize(), label);
 }
 
+// Sign MANY L1 txs in a SINGLE wallet approval (signAllTransactions), then send them sequentially,
+// confirming each before the next so dependent txs (delegates after the setup tx) still land in
+// order. This collapses the 3-4 provisioning popups into one so the trader can open before the
+// market moves. Trade-off: the later txs are signed before the earlier ones land, so a wallet may
+// show a "transaction may fail" simulation note — they still execute (sent post-confirm, skipPreflight).
+async function signSendAllL1(wallet: SignerWallet, groups: { ixs: TransactionInstruction[]; label: string }[]): Promise<void> {
+  const bh = (await baseConn.getLatestBlockhash()).blockhash;
+  const txs = groups.map((g) => {
+    const tx = new Transaction().add(...g.ixs);
+    tx.feePayer = wallet.publicKey;
+    tx.recentBlockhash = bh;
+    return tx;
+  });
+  const signed = await wallet.signAllTransactions(txs); // ONE approval for all
+  for (let i = 0; i < signed.length; i++) {
+    await sendChecked(baseConn, signed[i].serialize(), groups[i].label);
+  }
+}
+
 // Step 1 (L1): make sure the trader has collateral + a delegated position slot, ready to trade.
-// Done as SEQUENTIAL transactions, each confirmed before the next, so every one simulates cleanly
-// in the wallet (a batched deposit+delegate, or delegates signed before the deposit lands, fail
-// the wallet's pre-sign simulation and trigger "may fail" warnings). Idempotent: skips done steps.
-//   tx A: (faucet if needed) + deposit collateral + init position slot
-//   tx B: delegate user_balance + position to the ER
+// All the wallet-signed setup txs (deposit+init+session-key, then the two delegates) are signed in
+// ONE wallet approval via signAllTransactions and sent sequentially — so the trader gets a single
+// popup instead of 3-4 and can open before the market moves. The owner MUST sign these (the delegate
+// PDAs are seeded from the payer key, so the session key can't substitute). Idempotent: skips done steps.
 export async function provisionTrader(
   wallet: SignerWallet,
   usdcMint: PublicKey,
@@ -184,19 +214,18 @@ export async function provisionTrader(
   const position = pda.position(wallet.publicKey, market);
   const traderUsdc = getAssociatedTokenAddressSync(usdcMint, wallet.publicKey);
   const sessionKp = getSessionKeypair(wallet.publicKey);
-
-  // Top up the session key's SOL for ER fees (wallet signs). Runs even on re-trades, before any ER
-  // op (orphan recovery / open) so the session key can always pay its way on the rollup.
-  if ((await baseConn.getBalance(sessionKp.publicKey)) < SESSION_KEY_FLOOR) {
-    await signSendL1(
-      wallet,
-      [SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: sessionKp.publicKey, lamports: SESSION_KEY_TOPUP })],
-      "fund session key"
-    );
-  }
+  const fundIx = SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: sessionKp.publicKey, lamports: SESSION_KEY_TOPUP });
 
   let ubDelegated = await isDelegated(userBalance);
   let posDelegated = await isDelegated(position);
+
+  // Top up the session key's SOL for ER fees. The recovery paths below run ER ops, so if anything is
+  // already delegated we must fund FIRST (its own popup). On the clean first-time path we instead fold
+  // this into the batched setup tx, keeping the whole provisioning to a single approval.
+  const sessionLow = (await baseConn.getBalance(sessionKp.publicKey)) < SESSION_KEY_FLOOR;
+  if (sessionLow && (ubDelegated || posDelegated)) {
+    await signSendL1(wallet, [fundIx], "fund session key");
+  }
 
   // Recover ORPHANED accounts: delegated on L1 but missing/empty on the ER (a mid-session program
   // redeploy can drop or zero the ER's cloned copy). Check for real DATA, not just existence - a
@@ -249,11 +278,15 @@ export async function provisionTrader(
 
   if (ubDelegated && posDelegated) return; // already in the ER with enough collateral
 
-  // --- tx A: fund + create accounts (only while still on L1) ---
+  // Build every remaining wallet-signed setup tx, then sign them all in ONE approval below.
+  const groups: { ixs: TransactionInstruction[]; label: string }[] = [];
+
+  // --- setup tx: (session-key top-up) + deposit + init position + register session key ---
+  const setupIxs: TransactionInstruction[] = [];
+  if (sessionLow && !(ubDelegated || posDelegated)) setupIxs.push(fundIx); // fold the top-up in on the clean path
   if (!ubDelegated) {
     const free = (await fetchUserBalance(wallet.publicKey)) ?? 0;
     const shortfall = Math.max(0, neededFree(collateralUsdc, leverage) - free);
-    const ixs: TransactionInstruction[] = [];
     if (shortfall > 0) {
       // The protocol uses Circle's devnet USDC - get it from faucet.circle.com (we can't mint it).
       const walletUsdc = await fetchTokenBalance(wallet.publicKey, usdcMint);
@@ -262,8 +295,8 @@ export async function provisionTrader(
           `Need ~${shortfall.toFixed(2)} USDC of collateral but your wallet holds ${walletUsdc.toFixed(2)}. Get devnet USDC at faucet.circle.com, then try again.`
         );
       }
-      ixs.push(createAssociatedTokenAccountIdempotentInstruction(wallet.publicKey, traderUsdc, wallet.publicKey, usdcMint));
-      ixs.push(
+      setupIxs.push(createAssociatedTokenAccountIdempotentInstruction(wallet.publicKey, traderUsdc, wallet.publicKey, usdcMint));
+      setupIxs.push(
         await prog.methods
           .depositCollateral(toBase(shortfall))
           .accounts({ trader: wallet.publicKey, traderUsdc, tokenProgram: TOKEN_PROGRAM_ID })
@@ -271,22 +304,26 @@ export async function provisionTrader(
       );
     }
     if (!(await exists(position))) {
-      ixs.push(await prog.methods.initPosition().accounts({ owner: wallet.publicKey, market, position }).instruction());
+      setupIxs.push(await prog.methods.initPosition().accounts({ owner: wallet.publicKey, market, position }).instruction());
     }
     // register the session key so it can sign ER trades (authorize() accepts session_authority)
-    ixs.push(await prog.methods.setSessionKey(sessionKp.publicKey).accounts({ owner: wallet.publicKey, userBalance }).instruction());
-    await signSendL1(wallet, ixs, "deposit, init & session key");
+    setupIxs.push(await prog.methods.setSessionKey(sessionKp.publicKey).accounts({ owner: wallet.publicKey, userBalance }).instruction());
   } else if (!(await exists(position))) {
-    await signSendL1(wallet, [await prog.methods.initPosition().accounts({ owner: wallet.publicKey, market, position }).instruction()], "init position");
+    setupIxs.push(await prog.methods.initPosition().accounts({ owner: wallet.publicKey, market, position }).instruction());
   }
+  if (setupIxs.length) groups.push({ ixs: setupIxs, label: "deposit, init & session key" });
 
   // --- delegate the trader accounts to the ER (separate txs, the proven integration.ts ordering) ---
   if (!ubDelegated) {
-    await signSendL1(wallet, [await prog.methods.delegateUserBalance().accounts({ payer: wallet.publicKey, userBalance }).instruction()], "delegate balance");
+    groups.push({ ixs: [await prog.methods.delegateUserBalance().accounts({ payer: wallet.publicKey, userBalance }).instruction()], label: "delegate balance" });
   }
   if (!posDelegated) {
-    await signSendL1(wallet, [await prog.methods.delegatePosition().accounts({ payer: wallet.publicKey, market, position }).instruction()], "delegate position");
+    groups.push({ ixs: [await prog.methods.delegatePosition().accounts({ payer: wallet.publicKey, market, position }).instruction()], label: "delegate position" });
   }
+
+  // One popup for everything (or a single plain sign if there's only one tx).
+  if (groups.length === 1) await signSendL1(wallet, groups[0].ixs, groups[0].label);
+  else if (groups.length > 1) await signSendAllL1(wallet, groups);
 }
 
 // Step 2 (ER): open a new position in `slot` (a free slot in the book). Provision first.
@@ -307,7 +344,11 @@ export async function openPositionER(
     .openPosition(slot, sideArg(side), toBase(collateralUsdc), leverage)
     .accounts(erAccounts(sessionPk, wallet.publicKey, symbol))
     .instruction();
-  return sendERSession(wallet.publicKey, ix, "open_position");
+  const sig = await sendERSession(wallet.publicKey, ix, "open_position");
+  // Tier 2: ensure this trader's native on-chain liquidation crank is running. Best-effort and
+  // fire-and-forget — a duplicate schedule or an old (pre-redeploy) program just no-ops here.
+  scheduleLiquidationCrankER(wallet, symbol).catch(() => {});
+  return sig;
 }
 
 // Guard before an ER write to an open position (close / add / remove). Normally the accounts are
@@ -348,6 +389,85 @@ export async function closePositionER(wallet: SignerWallet, symbol: string, slot
   const prog = program(wallet, erConn);
   const ix = await prog.methods.closePosition(slot).accounts(erAccounts(sessionPk, wallet.publicKey, symbol)).instruction();
   return sendERSession(wallet.publicKey, ix, "close_position");
+}
+
+// Close a position AND pay the proceeds out to the wallet — what a trader expects from "Close".
+// Closing alone only moves settled equity into ER free_collateral; the cash-out needs an
+// undelegate->withdraw, which can only run when NO other positions are open (undelegating the book
+// while others are live would strand them). So: if this was the trader's last open position we
+// settle to L1 and withdraw all free collateral to the wallet; otherwise the proceeds stay in the
+// in-protocol balance until the last position closes (or "Close All"). Returns the close signature,
+// the amount withdrawn, and how many positions remain open.
+export async function closeAndWithdraw(
+  wallet: SignerWallet,
+  usdcMint: PublicKey,
+  symbol: string,
+  slot: number,
+  onStep?: (msg: string) => void
+): Promise<{ sig: string; withdrawn: number; remaining: number }> {
+  onStep?.("Closing…");
+  const sig = await closePositionER(wallet, symbol, slot);
+  const remaining = await fetchPositions(wallet.publicKey, symbol);
+  if (remaining.length > 0) return { sig, withdrawn: 0, remaining: remaining.length };
+  onStep?.("Settling to your wallet…");
+  await settleTraderToL1(wallet, symbol);
+  const free = (await fetchUserBalance(wallet.publicKey)) ?? 0;
+  if (free <= 0) return { sig, withdrawn: 0, remaining: 0 };
+  onStep?.("Withdrawing…");
+  await withdrawCollateral(wallet, usdcMint, free);
+  return { sig, withdrawn: free, remaining: 0 };
+}
+
+// Permissionless liquidation crank (ER). `crank_liquidate_one` has no signer account - the session
+// key just pays the fee. The program re-checks health on-chain and NO-OPS (returns Ok) if the slot
+// is actually still healthy, so it's always safe to fire: the on-chain oracle read is the source of
+// truth, the client only triggers. On a real liquidation the slot is closed and its equity (minus
+// the liq penalty, which is routed to the pool) lands in the owner's free_collateral.
+export async function crankLiquidateER(wallet: SignerWallet, symbol: string, slot: number): Promise<string> {
+  const market = pda.market(symbol);
+  const prog = program(wallet, erConn);
+  const ix = await prog.methods
+    .crankLiquidateOne(slot)
+    .accounts({
+      market,
+      pool: pda.pool(market),
+      userBalance: pda.user(wallet.publicKey),
+      positionBook: pda.position(wallet.publicKey, market),
+      basePrice: SOL_USD,
+      quotePrice: ETH_USD,
+    })
+    .instruction();
+  return sendERSession(wallet.publicKey, ix, "crank_liquidate_one");
+}
+
+// Register this trader's autonomous on-chain liquidation crank (Tier 2). Schedules a recurring
+// MagicBlock task on the ER that calls crank_liquidate_book every `intervalMs` for `iterations`
+// ticks — a native keeper, no browser/bot needed. Idempotent in practice: re-scheduling the same
+// task_id is a harmless no-op/duplicate the caller swallows. Requires the redeployed program +
+// synced IDL (the method is absent on the old build, so this throws and is caught upstream).
+export async function scheduleLiquidationCrankER(
+  wallet: SignerWallet,
+  symbol: string,
+  intervalMs = 400,
+  iterations = 200_000
+): Promise<string> {
+  const market = pda.market(symbol);
+  const sessionPk = getSessionKeypair(wallet.publicKey).publicKey;
+  const prog = program(wallet, erConn);
+  const ix = await prog.methods
+    .scheduleLiquidationCrank(liqTaskId(wallet.publicKey), new BN(intervalMs), new BN(iterations))
+    .accounts({
+      payer: sessionPk,
+      market,
+      pool: pda.pool(market),
+      userBalance: pda.user(wallet.publicKey),
+      positionBook: pda.position(wallet.publicKey, market),
+      basePrice: SOL_USD,
+      quotePrice: ETH_USD,
+      magicProgram: MAGIC_PROGRAM,
+    })
+    .instruction();
+  return sendERSession(wallet.publicKey, ix, "schedule_liquidation_crank");
 }
 
 const modifyAccounts = (signer: PublicKey, owner: PublicKey, symbol: string) => {

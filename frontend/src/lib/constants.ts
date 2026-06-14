@@ -49,9 +49,10 @@ export const PARAMS = {
   maxRatioConfBps: 50,
   fundingIntervalSecs: 3600,
   // Volatility amplification for the relative-value index (1e4 = 1x identity; 100_000 = 10x).
-  // MUST match the on-chain market.amp_bps set via scripts/set-vol.cjs, or the UI's predicted
-  // PnL/liquidation will diverge from what the chain settles.
-  volAmpBps: 100_000,
+  // MUST match the on-chain market.amp_bps, or the UI's predicted PnL/liquidation will diverge
+  // from what the chain settles. The deployed program does NOT amplify (raw ratio), so this is 1x.
+  // To enable 10x, redeploy a program build with amp_bps set on-chain, then bump this to match.
+  volAmpBps: 10_000,
 };
 
 export const BPS = 10_000;

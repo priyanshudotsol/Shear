@@ -5,20 +5,16 @@ use crate::error::ShearError;
 use crate::vendored_pyth::PriceUpdateV2;
 use anchor_lang::prelude::*;
 
-/// Returns (ratio R scaled 1e9, composite confidence in bps).
+/// Returns (raw ratio R scaled 1e9, composite confidence in bps).
 /// Rejects: stale (either leg), non-positive price, exponent mismatch, confidence > max.
 ///
-/// The returned ratio is the volatility-amplified relative-value index (see
-/// `shear_math::amplify_ratio`): `ref_ratio` is the market anchor R_0 and `amp_bps` the deviation
-/// multiplier (1e4 = 1x identity). Applying it here — the single read path for every priced action —
-/// keeps entry, mark, PnL, and liquidation all in the same amplified frame.
+/// The single read path for every priced action, so entry, mark, PnL, and liquidation all use the
+/// same raw SOL/ETH ratio frame. (Volatility amplification is intentionally not applied on-chain.)
 pub fn read_ratio(
     base_ai: &AccountInfo,
     quote_ai: &AccountInfo,
     max_age: u64,
     max_conf_bps: u64,
-    ref_ratio: u128,
-    amp_bps: u32,
 ) -> Result<(u128, u64)> {
     let clock = Clock::get()?;
     let base = PriceUpdateV2::try_deserialize_unchecked(&mut (*base_ai.data.borrow()).as_ref())?;
@@ -38,8 +34,7 @@ pub fn read_ratio(
 
     let r = shear_math::compute_ratio(pb.price, pq.price)
         .map_err(|_| error!(ShearError::OracleStale))?;
-    let r_amp = shear_math::amplify_ratio(r, ref_ratio, amp_bps);
-    Ok((r_amp, conf_bps as u64))
+    Ok((r, conf_bps as u64))
 }
 
 /// Confidence-widened liquidation buffer = N * conf_bps / 1e4  (in USDC), per MATH.md §5.

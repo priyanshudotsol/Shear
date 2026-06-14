@@ -4,7 +4,7 @@
     "name": "shear",
     "version": "0.1.0",
     "spec": "0.1.0",
-    "description": "SHEAR - relative-value (ratio) perpetuals on MagicBlock Ephemeral Rollups."
+    "description": "SHEAR — relative-value (ratio) perpetuals on MagicBlock Ephemeral Rollups."
   },
   "instructions": [
     {
@@ -353,6 +353,113 @@
           "name": "magic_context",
           "writable": true,
           "address": "MagicContext1111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "crank_liquidate_book",
+      "discriminator": [
+        56,
+        116,
+        123,
+        34,
+        214,
+        183,
+        28,
+        83
+      ],
+      "accounts": [
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  117,
+                  99
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  95,
+                  117,
+                  99
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position_book.owner",
+                "account": "PositionBook"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position_book",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  98,
+                  111,
+                  111,
+                  107,
+                  95,
+                  117,
+                  99
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position_book.owner",
+                "account": "PositionBook"
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "base_price"
+        },
+        {
+          "name": "quote_price"
         }
       ],
       "args": []
@@ -2206,6 +2313,135 @@
         {
           "name": "market",
           "writable": true
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "task_id",
+          "type": "i64"
+        },
+        {
+          "name": "interval_ms",
+          "type": "i64"
+        },
+        {
+          "name": "iterations",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "schedule_liquidation_crank",
+      "discriminator": [
+        56,
+        159,
+        66,
+        207,
+        244,
+        21,
+        140,
+        92
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  117,
+                  99
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  95,
+                  117,
+                  99
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position_book.owner",
+                "account": "PositionBook"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position_book",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  98,
+                  111,
+                  111,
+                  107,
+                  95,
+                  117,
+                  99
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position_book.owner",
+                "account": "PositionBook"
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "base_price"
+        },
+        {
+          "name": "quote_price"
         },
         {
           "name": "magic_program",

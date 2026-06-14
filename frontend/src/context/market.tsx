@@ -1,11 +1,13 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWallet, useAnchorWallet } from "@solana/wallet-adapter-react";
 import { ShearEngine, type Snapshot, type ClosedPosition, type RatioPoint, type MarketSnap } from "@/lib/market-engine";
 import type { Side } from "@/lib/shear-math";
 import { subscribePyth, fetchLatestPyth } from "@/lib/pyth";
-import { useChainData, type ChainData } from "@/lib/use-chain-data";
+import { useChainData, type ChainData, ONCHAIN_MARKET } from "@/lib/use-chain-data";
+import { useLiquidationCrank } from "@/lib/use-liquidation-crank";
+import { scheduleLiquidationCrankER } from "@/lib/chain-trade";
 import { DEFAULT_MARKET } from "@/lib/constants";
 
 export type { RatioPoint, MarketSnap };
@@ -130,7 +132,35 @@ export function MarketProvider({ children }: { children: React.ReactNode }) {
   }, [engine]);
 
   const chain = useChainData();
+  const anchorWallet = useAnchorWallet();
   const active = snap.markets.find((m) => m.symbol === activeMarket) ?? snap.markets[0];
+
+  // Liquidation keeper: force-close any on-chain position that crosses its liq ratio. Runs against
+  // the SOL-ETH market (the only one deployed on-chain), checked against the live oracle ratio.
+  // This is the visible browser-side fallback; the authoritative path is the native on-chain crank.
+  useLiquidationCrank({
+    enabled: !!chain.market?.delegated && chain.positions.length > 0,
+    symbol: ONCHAIN_MARKET,
+    snap: snap.markets.find((m) => m.symbol === ONCHAIN_MARKET),
+    cumFunding: chain.market?.cumFunding ?? 0,
+    positions: chain.positions,
+    wallet: anchorWallet ?? null,
+    owner: publicKey?.toBase58() ?? null,
+    refresh: chain.refresh,
+  });
+
+  // Tier 2: ensure this trader's native on-chain liquidation crank is scheduled on the ER once a
+  // session is live and they hold positions — covers books opened before this build (the open path
+  // also schedules it). Fires once per wallet; best-effort (duplicate/old-program schedules no-op).
+  const crankScheduled = useRef<string | null>(null);
+  useEffect(() => {
+    const owner = anchorWallet?.publicKey.toBase58() ?? null;
+    if (!anchorWallet || !owner) return;
+    if (!chain.market?.delegated || chain.positions.length === 0) return;
+    if (crankScheduled.current === owner) return;
+    crankScheduled.current = owner;
+    scheduleLiquidationCrankER(anchorWallet, ONCHAIN_MARKET).catch(() => {});
+  }, [anchorWallet, chain.market?.delegated, chain.positions.length]);
 
   const value: MarketCtx = {
     ...snap,

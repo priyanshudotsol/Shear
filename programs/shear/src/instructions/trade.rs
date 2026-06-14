@@ -104,8 +104,6 @@ pub fn open_position(ctx: Context<Trade>, slot: u8, side: Side, collateral: u64,
         &ctx.accounts.quote_price,
         ctx.accounts.market.max_age_sec,
         ctx.accounts.market.max_ratio_conf_bps as u64,
-        ctx.accounts.market.ref_ratio,
-        ctx.accounts.market.amp_bps,
     )?;
 
     let cfg = glue::cfg(&ctx.accounts.market);
@@ -150,8 +148,6 @@ pub fn close_position(ctx: Context<Trade>, slot: u8) -> Result<()> {
         &ctx.accounts.quote_price,
         ctx.accounts.market.max_age_sec,
         ctx.accounts.market.max_ratio_conf_bps as u64,
-        ctx.accounts.market.ref_ratio,
-        ctx.accounts.market.amp_bps,
     )?;
 
     let cfg = glue::cfg(&ctx.accounts.market);
@@ -234,8 +230,6 @@ pub fn remove_collateral(ctx: Context<ModifyCollateral>, slot: u8, amount: u64) 
         &ctx.accounts.quote_price,
         ctx.accounts.market.max_age_sec,
         ctx.accounts.market.max_ratio_conf_bps as u64,
-        ctx.accounts.market.ref_ratio,
-        ctx.accounts.market.amp_bps,
     )?;
     let new_collateral = pos.collateral - amount;
     let upnl = shear_math::unrealized_pnl(glue::side_to_engine(pos.side), pos.notional, pos.entry_ratio, r_t)

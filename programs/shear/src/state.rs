@@ -90,9 +90,6 @@ pub struct Market {
     pub max_age_sec: u64,            // oracle staleness for execution paths
     pub max_ratio_conf_bps: u16,     // composite ratio confidence gate
     pub liq_max_conf_bps: u16,       // refuse liquidation above this confidence
-    // --- volatility amplification (relative-value index): R_amp = ref_ratio + amp_bps/1e4 * (R_raw - ref_ratio) ---
-    pub ref_ratio: u128,             // R_0 anchor (1e9-scaled); set at create + re-anchorable by admin
-    pub amp_bps: u32,                // deviation multiplier (1e4 = 1x identity; e.g. 100_000 = 10x)
     // --- live state ---
     pub long_oi: u64,                // Σ notional long (USDC)
     pub short_oi: u64,               // Σ notional short (USDC)

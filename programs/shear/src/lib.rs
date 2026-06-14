@@ -48,9 +48,6 @@ pub mod shear {
     pub fn set_market_risk(ctx: Context<SetMarketStatus>, p: admin::MarketRiskParams) -> Result<()> {
         admin::set_market_risk(ctx, p)
     }
-    pub fn set_market_vol(ctx: Context<SetMarketStatus>, ref_ratio: u128, amp_bps: u32) -> Result<()> {
-        admin::set_market_vol(ctx, ref_ratio, amp_bps)
-    }
     pub fn set_paused(ctx: Context<SetPaused>, paused: bool) -> Result<()> {
         admin::set_paused(ctx, paused)
     }
@@ -140,5 +137,11 @@ pub mod shear {
     }
     pub fn crank_liquidate_one(ctx: Context<CrankLiquidateOne>, slot: u8) -> Result<()> {
         liquidation::crank_liquidate_one(ctx, slot)
+    }
+    pub fn crank_liquidate_book(ctx: Context<CrankLiquidateBook>) -> Result<()> {
+        liquidation::crank_liquidate_book(ctx)
+    }
+    pub fn schedule_liquidation_crank(ctx: Context<ScheduleLiquidationCrank>, task_id: i64, interval_ms: i64, iterations: i64) -> Result<()> {
+        liquidation::schedule_liquidation_crank(ctx, task_id, interval_ms, iterations)
     }
 }

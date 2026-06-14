@@ -120,10 +120,6 @@ pub fn create_market(ctx: Context<CreateMarket>, p: CreateMarketParams) -> Resul
     m.max_age_sec = cfg.max_age_sec;
     m.max_ratio_conf_bps = cfg.max_ratio_conf_bps;
     m.liq_max_conf_bps = cfg.liq_max_conf_bps;
-    // anchor the volatility index at the live ratio; 1x (identity) until admin dials it up
-    m.ref_ratio = shear_math::compute_ratio(base.price_message.price, quote.price_message.price)
-        .map_err(|_| error!(ShearError::OracleStale))?;
-    m.amp_bps = shear_math::BPS as u32;
     m.long_oi = 0;
     m.short_oi = 0;
     m.cum_funding = 0;
@@ -177,17 +173,6 @@ pub fn set_market_risk(ctx: Context<SetMarketStatus>, p: MarketRiskParams) -> Re
     m.oi_cap_abs = p.oi_cap_abs;
     m.min_collateral = p.min_collateral;
     m.min_position_notional = p.min_position_notional;
-    Ok(())
-}
-
-/// Admin: set the volatility-amplification index for a market (relative-value perp). Re-anchors
-/// `ref_ratio` (R_0) and sets `amp_bps` (1e4 = 1x identity; e.g. 100_000 = 10x). Pass the *current*
-/// raw ratio (1e9-scaled) read off-chain so the index is symmetric around now. `amp_bps == 1e4`
-/// (or `ref_ratio == 0`) disables amplification. Must run while the market is on L1 (undelegate first).
-pub fn set_market_vol(ctx: Context<SetMarketStatus>, ref_ratio: u128, amp_bps: u32) -> Result<()> {
-    let m = &mut ctx.accounts.market;
-    m.ref_ratio = ref_ratio;
-    m.amp_bps = amp_bps;
     Ok(())
 }
 

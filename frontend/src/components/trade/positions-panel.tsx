@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { WalletButton } from "@/components/wallet-button";
 import type { ChainData } from "@/lib/use-chain-data";
 import type { ChainPosition } from "@/lib/chain";
-import { closePositionER, settleAndWithdraw } from "@/lib/chain-trade";
+import { closeAndWithdraw, settleAndWithdraw } from "@/lib/chain-trade";
 import { recordTrade, getTrades, hydrateTrades, type ClosedTrade } from "@/lib/trade-log";
 import { fmtUsd, fmtUsdSigned, fmtRatio, fmtPct } from "@/lib/format";
 import * as M from "@/lib/shear-math";
@@ -152,23 +152,27 @@ function PositionsTable({ positions, active, chain, busy, owner }: { positions: 
 
 function PositionRow({ pos: p, active, chain, busy, owner }: { pos: ChainPosition; active: MarketSnap; chain: ChainData; busy: boolean; owner: string }) {
   const anchorWallet = useAnchorWallet();
-  const [closing, setClosing] = useState(false);
+  const [closing, setClosing] = useState<string | null>(null);
   const m = metrics(p, active, chain);
   const long = p.side === "long";
   const leverage = p.collateral > 0 ? p.notional / p.collateral : 0;
 
   async function close() {
     if (!anchorWallet) return toast.error("Connect a wallet");
+    const usdcMint = chain.config?.usdcMint;
+    if (!usdcMint) return toast.error("Config not loaded yet — try again in a moment");
     try {
-      setClosing(true);
-      const sig = await closePositionER(anchorWallet, active.symbol, p.slot);
+      setClosing("Closing…");
+      const { sig, withdrawn, remaining } = await closeAndWithdraw(anchorWallet, new PublicKey(usdcMint), active.symbol, p.slot, (msg) => setClosing(msg));
       recordTrade(owner, { symbol: active.symbol, side: p.side, notional: p.notional, collateral: p.collateral, leverage: p.collateral > 0 ? p.notional / p.collateral : 0, entryRatio: p.entryRatio, exitRatio: active.ratio, realizedPnl: m.upnl, status: "closed", signature: sig });
-      toast.success(`Closed ${p.side} · ${sig.slice(0, 8)}`);
+      if (withdrawn > 0) toast.success(`Closed · withdrew ${fmtUsd(withdrawn)} to your wallet`);
+      else if (remaining > 0) toast.success(`Closed · proceeds added to your balance. Close your last position to cash out to your wallet.`);
+      else toast.success(`Closed · nothing to withdraw`);
       setTimeout(chain.refresh, 1500);
     } catch (e) {
       toast.error(`Close failed: ${errMsg(e).slice(0, 140)}`);
     } finally {
-      setClosing(false);
+      setClosing(null);
     }
   }
 
@@ -192,14 +196,17 @@ function PositionRow({ pos: p, active, chain, busy, owner }: { pos: ChainPositio
       </Td>
       <Td className="hidden text-right font-mono tnum sm:table-cell">
         <div>{fmtRatio(p.entryRatio)}</div>
-        <div className="text-xs text-muted-foreground">{fmtRatio(active.ratio)}</div>
+        <div className="text-xs text-muted-foreground">
+          {fmtRatio(active.ratio)}
+          {p.entryRatio > 0 && <span className="ml-1 opacity-70">({fmtPct(active.ratio / p.entryRatio - 1)})</span>}
+        </div>
       </Td>
       <Td className="hidden text-right font-mono tnum text-down md:table-cell">{fmtRatio(m.liqRatio)}</Td>
       <Td className="hidden text-right font-mono tnum sm:table-cell">{fmtUsd(p.notional)}</Td>
       <Td className="hidden text-right font-mono tnum md:table-cell">{fmtUsd(p.collateral)}</Td>
       <Td className="text-right">
-        <Button onClick={close} disabled={busy || closing} variant="destructive" size="sm" className="h-7 text-xs">
-          {closing ? "Closing…" : "Close"}
+        <Button onClick={close} disabled={busy || !!closing} variant="destructive" size="sm" className="h-7 text-xs">
+          {closing ?? "Close"}
         </Button>
       </Td>
     </tr>
