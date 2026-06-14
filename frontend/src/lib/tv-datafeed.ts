@@ -175,9 +175,19 @@ export const ratioDatafeed: IBasicDataFeed = {
     const min = minFor(resolution);
     fetchRatioCandles(base, quote, min, daysFor(min))
       .then((candles) => {
+        // Sort ascending + dedupe (TradingView rejects unordered/duplicate bars), then drop anything
+        // after the requested `to`. We intentionally do NOT lower-bound by `from`: the store holds a
+        // bounded window and returning extra older bars is harmless, whereas a `from` that doesn't
+        // overlap our window would silently blank the chart.
+        const seen = new Set<number>();
         const bars = candles
-          .filter((c) => c.time >= from && c.time <= to)
-          .map(candleToBar);
+          .map(candleToBar)
+          .filter((b) => b.time <= to * 1000)
+          .sort((a, b) => a.time - b.time)
+          .filter((b) => (seen.has(b.time) ? false : (seen.add(b.time), true)));
+        if (process.env.NODE_ENV !== "production") {
+          console.warn(`[tv-datafeed] getBars ${base}/${quote} res=${resolution} fetched=${candles.length} returned=${bars.length} from=${from} to=${to}`);
+        }
         if (bars.length === 0) {
           onResult([], { noData: true });
           return;
