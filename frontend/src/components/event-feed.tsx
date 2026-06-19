@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { fmtUsd, fmtUsdSigned, shortKey } from "@/lib/format";
+import { TxLink } from "@/components/tx-link";
 import { ArrowUpRight, ArrowDownRight, Flame, Activity } from "lucide-react";
 
 export interface ActivityEvent {
@@ -20,6 +21,7 @@ export interface ActivityEvent {
   leverage: number;
   ratio: number;
   realizedPnl: number | null;
+  signature?: string | null; // ER tx signature (open/close run on the MagicBlock ER)
   ts: number; // unix seconds
 }
 
@@ -106,6 +108,11 @@ export function EventFeed({
             >
               {detail}
             </span>
+            {e.signature ? (
+              <TxLink sig={e.signature} layer="er" className="shrink-0" />
+            ) : (
+              <span className="w-[52px] shrink-0" />
+            )}
             <span className="w-8 shrink-0 text-right font-mono text-xs text-muted-foreground/50">{ago(e.ts)}</span>
           </div>
         );

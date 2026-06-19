@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { fmtUsd, fmtRatio } from "@/lib/format";
+import { TxToast } from "@/components/tx-link";
 import { PARAMS } from "@/lib/constants";
 import * as M from "@/lib/shear-math";
 import type { Side } from "@/lib/shear-math";
@@ -66,7 +67,7 @@ export function OrderPanel() {
       setBusy("Opening on the ER…");
       const sig = await openPositionER(anchorWallet, active.symbol, slot, side, c, leverage);
       recordOpen(anchorWallet.publicKey.toBase58(), { symbol: active.symbol, side, notional: n, collateral: c, leverage, entryRatio: ratio, signature: sig });
-      toast.success(`Opened ${side} ${leverage}× · ${sig.slice(0, 8)}`);
+      toast.success(<TxToast label={`Opened ${side} ${leverage}×`} sig={sig} />);
       setTimeout(chain.refresh, 1500);
     } catch (e) {
       toast.error(`Open failed: ${errMsg(e).slice(0, 140)}`);

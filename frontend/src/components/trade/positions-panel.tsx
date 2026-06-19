@@ -11,6 +11,7 @@ import type { ChainPosition } from "@/lib/chain";
 import { closeAndWithdraw, settleAndWithdraw } from "@/lib/chain-trade";
 import { recordTrade, getTrades, hydrateTrades, type ClosedTrade } from "@/lib/trade-log";
 import { fmtUsd, fmtUsdSigned, fmtRatio, fmtPct } from "@/lib/format";
+import { TxToast, TxLink } from "@/components/tx-link";
 import * as M from "@/lib/shear-math";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -165,9 +166,12 @@ function PositionRow({ pos: p, active, chain, busy, owner }: { pos: ChainPositio
       setClosing("Closing…");
       const { sig, withdrawn, remaining } = await closeAndWithdraw(anchorWallet, new PublicKey(usdcMint), active.symbol, p.slot, (msg) => setClosing(msg));
       recordTrade(owner, { symbol: active.symbol, side: p.side, notional: p.notional, collateral: p.collateral, leverage: p.collateral > 0 ? p.notional / p.collateral : 0, entryRatio: p.entryRatio, exitRatio: active.ratio, realizedPnl: m.upnl, status: "closed", signature: sig });
-      if (withdrawn > 0) toast.success(`Closed · withdrew ${fmtUsd(withdrawn)} to your wallet`);
-      else if (remaining > 0) toast.success(`Closed · proceeds added to your balance. Close your last position to cash out to your wallet.`);
-      else toast.success(`Closed · nothing to withdraw`);
+      const closeLabel = withdrawn > 0
+        ? `Closed · withdrew ${fmtUsd(withdrawn)} to your wallet`
+        : remaining > 0
+          ? `Closed · proceeds added to your balance`
+          : `Closed · nothing to withdraw`;
+      toast.success(<TxToast label={closeLabel} sig={sig} />);
       setTimeout(chain.refresh, 1500);
     } catch (e) {
       toast.error(`Close failed: ${errMsg(e).slice(0, 140)}`);
@@ -225,6 +229,7 @@ function HistoryTable({ trades, symbol }: { trades: ClosedTrade[]; symbol: strin
             <Th className="hidden text-right sm:table-cell">Size</Th>
             <Th className="text-right">Realized PnL</Th>
             <Th className="text-right">Status</Th>
+            <Th className="hidden text-right sm:table-cell">Tx</Th>
             <Th className="hidden text-right md:table-cell">Closed</Th>
           </tr>
         </thead>
@@ -251,6 +256,9 @@ function HistoryTable({ trades, symbol }: { trades: ClosedTrade[]; symbol: strin
                   <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium uppercase", liq ? "bg-down/15 text-down" : "bg-secondary text-muted-foreground")}>
                     {liq ? "Liquidated" : "Closed"}
                   </span>
+                </Td>
+                <Td className="hidden text-right sm:table-cell">
+                  {t.signature ? <TxLink sig={t.signature} layer="er" /> : <span className="text-xs text-muted-foreground/50">—</span>}
                 </Td>
                 <Td className="hidden text-right text-xs text-muted-foreground md:table-cell">
                   {new Date(t.closedTs * 1000).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}

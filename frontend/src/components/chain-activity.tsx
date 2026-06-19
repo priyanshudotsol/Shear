@@ -1,7 +1,7 @@
 "use client";
 
 import { useChainEvents, type ChainEvent } from "@/lib/use-chain-events";
-import { shortKey } from "@/lib/format";
+import { shortKey, baseTxUrl, erTxUrl } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   ArrowUpRight,
@@ -42,23 +42,23 @@ function Row({ e }: { e: ChainEvent }) {
       </span>
       <span className="shrink-0 rounded bg-secondary px-1 text-[10px] uppercase text-muted-foreground">{e.source}</span>
       <span className="shrink-0 font-mono text-[11px] text-muted-foreground/70">{shortKey(e.signature, 4)}</span>
-      {e.source === "base" && <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground/50" />}
+      <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground/50" />
       <span className="w-8 shrink-0 text-right font-mono text-[11px] text-muted-foreground/60">{ago(e.blockTime)}</span>
     </>
   );
-  if (e.source === "base") {
-    return (
-      <a
-        href={`https://explorer.solana.com/tx/${e.signature}?cluster=devnet`}
-        target="_blank"
-        rel="noreferrer"
-        className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm hover:bg-secondary/40"
-      >
-        {inner}
-      </a>
-    );
-  }
-  return <div className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm">{inner}</div>;
+  // Open/close trades land on the ER; deposits, delegation and withdrawals land on the base layer.
+  // Link each to the explorer against the right cluster so the trade is verifiable on-chain.
+  const href = e.source === "base" ? baseTxUrl(e.signature) : erTxUrl(e.signature);
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm hover:bg-secondary/40"
+    >
+      {inner}
+    </a>
+  );
 }
 
 // Only trade events - opens, closes, liquidations, margin changes (no funding crank
