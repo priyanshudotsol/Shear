@@ -1,40 +1,36 @@
-const fs=require("fs"),path=require("path");
-const anchor=require("../frontend/node_modules/@coral-xyz/anchor");
-const {PublicKey,Connection,Keypair,Transaction,SystemProgram,LAMPORTS_PER_SOL}=require("../frontend/node_modules/@solana/web3.js");
-const {getAssociatedTokenAddressSync,createAssociatedTokenAccountIdempotentInstruction,TOKEN_PROGRAM_ID}=require("../frontend/node_modules/@solana/spl-token");
-const PID=new PublicKey("6MmNvgdPtujGAnoFFn3V74RYR6vgyTVA7EAKPBEussGi"),MINT=new PublicKey("CU4JxjFB16HLz5mfppgdGfHpbS7gde5SLsxRSXLh7KU6");
-const SOL_USD=new PublicKey("ENYwebBThHzmzwPLAQvCucUTsjyfBSZdD9ViXksS4jPu"),ETH_USD=new PublicKey("5vaYr1hpv8yrSpu8w3K95x22byYxUJCCNCSYJtqVWPvG");
-const idl=require("../frontend/src/lib/idl/shear.json");const sym=Buffer.alloc(16);sym.write("SOL-ETH");
-const [market]=PublicKey.findProgramAddressSync([Buffer.from("market"),sym],PID);
-const [pool]=PublicKey.findProgramAddressSync([Buffer.from("pool"),market.toBuffer()],PID);
-const base=new Connection("https://api.devnet.solana.com","confirmed"),er=new Connection("https://devnet.magicblock.app","confirmed");
-async function send(conn,kp,ixs,label){const tx=new Transaction().add(...ixs);tx.feePayer=kp.publicKey;tx.recentBlockhash=(await conn.getLatestBlockhash()).blockhash;tx.sign(kp);const sig=await conn.sendRawTransaction(tx.serialize(),{skipPreflight:true});const r=await conn.confirmTransaction(sig,"confirmed");if(r.value.err){const t=await conn.getTransaction(sig,{maxSupportedTransactionVersion:0,commitment:"confirmed"});throw new Error(`${label}: `+JSON.stringify(r.value.err)+"\n"+(t?.meta?.logMessages||[]).slice(-5).join("\n"));}console.log(`   ${label} OK`);}
-const onER=async k=>{const i=await er.getAccountInfo(k);return !!i&&i.data.length>0;};
-const waitER=async ks=>{for(let i=0;i<25;i++){if((await Promise.all(ks.map(onER))).every(Boolean))return;await new Promise(r=>setTimeout(r,1000));}throw new Error("ER not ready");};
-const settled=async k=>{for(let i=0;i<20;i++){const b=await base.getAccountInfo(k);if(b&&b.owner.equals(PID))return;await new Promise(r=>setTimeout(r,1500));}};
-(async()=>{
-const admin=Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(path.join(process.env.HOME,".config/solana/devnet-trading-wallet.json"),"utf8"))));
-const owner=Keypair.generate(),sk=Keypair.generate();console.log("owner:",owner.publicKey.toBase58());
-await send(base,admin,[SystemProgram.transfer({fromPubkey:admin.publicKey,toPubkey:owner.publicKey,lamports:0.15*LAMPORTS_PER_SOL}),SystemProgram.transfer({fromPubkey:admin.publicKey,toPubkey:sk.publicKey,lamports:0.05*LAMPORTS_PER_SOL})],"fund");
-const w={publicKey:owner.publicKey,signTransaction:async t=>(t.partialSign(owner),t)};
-const prog=new anchor.Program(idl,new anchor.AnchorProvider(base,w,{})),erp=new anchor.Program(idl,new anchor.AnchorProvider(er,w,{}));
-const [ub]=PublicKey.findProgramAddressSync([Buffer.from("user"),owner.publicKey.toBuffer()],PID);
-const [pos]=PublicKey.findProgramAddressSync([Buffer.from("position"),owner.publicKey.toBuffer(),market.toBuffer()],PID);
-const ata=getAssociatedTokenAddressSync(MINT,owner.publicKey);
-const erAcc={signer:sk.publicKey,market,pool,userBalance:ub,position:pos,basePrice:SOL_USD,quotePrice:ETH_USD,sessionToken:null};
-await send(base,owner,[createAssociatedTokenAccountIdempotentInstruction(owner.publicKey,ata,owner.publicKey,MINT),await prog.methods.faucet().accounts({recipient:owner.publicKey,usdcMint:MINT,recipientUsdc:ata,tokenProgram:TOKEN_PROGRAM_ID}).instruction(),await prog.methods.depositCollateral(new anchor.BN(120_000_000)).accounts({trader:owner.publicKey,traderUsdc:ata,tokenProgram:TOKEN_PROGRAM_ID}).instruction(),await prog.methods.initPosition().accounts({owner:owner.publicKey,market,position:pos}).instruction(),await prog.methods.setSessionKey(sk.publicKey).accounts({owner:owner.publicKey,userBalance:ub}).instruction()],"setup");
-await send(base,owner,[await prog.methods.delegateUserBalance().accounts({payer:owner.publicKey,userBalance:ub}).instruction()],"delegate ub");
-await send(base,owner,[await prog.methods.delegatePosition().accounts({payer:owner.publicKey,market,position:pos}).instruction()],"delegate pos");
-console.log("-- normal exit: close THEN settle --");
-await send(er,sk,[await erp.methods.openPosition({long:{}},new anchor.BN(100_000_000),5).accounts(erAcc).instruction()],"open #1");
-await send(er,sk,[await erp.methods.closePosition().accounts(erAcc).instruction()],"close #1");
-await send(er,sk,[await erp.methods.undelegateTrader().accounts({payer:sk.publicKey,userBalance:ub,position:pos}).instruction()],"undelegate (flat)");
-await settled(ub);
-console.log("-- re-trade after settle: re-delegate THEN open --");
-await send(base,owner,[await prog.methods.delegateUserBalance().accounts({payer:owner.publicKey,userBalance:ub}).instruction()],"re-delegate ub");
-await send(base,owner,[await prog.methods.delegatePosition().accounts({payer:owner.publicKey,market,position:pos}).instruction()],"re-delegate pos");
-await waitER([market,pool,ub,pos]);
-await send(er,sk,[await erp.methods.openPosition({short:{}},new anchor.BN(100_000_000),5).accounts(erAcc).instruction()],"open #2 (after re-delegate)");
-await send(er,sk,[await erp.methods.closePosition().accounts(erAcc).instruction()],"close #2");
-console.log("\nNORMAL LIFECYCLE + RE-TRADE-AFTER-SETTLE VERIFIED ✓");
-})().catch(e=>{console.error("FAILED:\n",e.message||e);process.exit(1);});
+// Full lifecycle on the CURRENT program (shuttle collateral model). Verifies:
+//   fund -> init+stage deposit -> delegate -> claim_deposit (ER) -> open -> close
+//   -> request_withdraw (ER) -> settle_withdraw (L1), with USDC actually returning to the wallet.
+// The trading unit (UserBalance + PositionBook) stays delegated the whole time; collateral moves only
+// through the per-trader shuttle. Run: node scripts/test-lifecycle.cjs
+// Requires the admin (devnet-trading-wallet) to hold ~6 Circle USDC + ~0.1 SOL.
+const S = require("./_shear.cjs");
+
+(async () => {
+  const admin = S.loadAdmin();
+  const owner = S.Keypair.generate(), session = S.Keypair.generate();
+  console.log("owner:", owner.publicKey.toBase58());
+
+  const ownerAta = await S.fundOwner(admin, owner, session, { usdc: 6 });
+  const usdcBefore = (await S.base.getTokenAccountBalance(ownerAta)).value.uiAmount;
+
+  // provision: stages a 5-USDC deposit and claims it onto the ER as free_collateral
+  await S.provision(owner, session, ownerAta, 5);
+  console.log("   free_collateral on ER:", await S.freeCollateral(owner.publicKey), "USDC");
+
+  // --- open then close on the ER (session-key signed) ---
+  const erp = S.prog(S.er, S.wallet(session));
+  const acc = S.erAccounts(session, owner);
+  await S.send(S.er, session, [await erp.methods.openPosition(0, { long: {} }, S.usdc(2), 2).accounts(acc).instruction()], "open #1 (slot 0)");
+  await S.send(S.er, session, [await erp.methods.closePosition(0).accounts(acc).instruction()], "close #1");
+
+  // --- withdraw all free collateral back to the wallet via the shuttle (no undelegation) ---
+  const free = await S.freeCollateral(owner.publicKey);
+  console.log("   free_collateral after close:", free, "USDC — withdrawing all");
+  await S.withdrawShuttle(owner, session, free, ownerAta);
+
+  const usdcAfter = (await S.base.getTokenAccountBalance(ownerAta)).value.uiAmount;
+  console.log(`   wallet USDC: ${usdcBefore} -> ${usdcAfter}`);
+  if (usdcAfter <= usdcBefore - 5 + free - 0.01) throw new Error("withdraw did not return USDC to the wallet");
+  console.log("\nLIFECYCLE (shuttle deposit + trade + shuttle withdraw) VERIFIED ✓");
+})().catch((e) => { console.error("FAILED:\n", e.message || e); process.exit(1); });

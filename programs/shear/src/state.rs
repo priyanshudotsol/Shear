@@ -132,6 +132,26 @@ pub struct UserBalance {
     pub bump: u8,
 }
 
+/// One per trader. A bidirectional staging buffer that lets a trader move real USDC in/out of
+/// their (delegated) `free_collateral` WITHOUT undelegating the live trading accounts.
+/// Seeds: `[b"shuttle", owner]`. Bounces L1 -> ER -> L1:
+///   - L1 `deposit_collateral`: real USDC -> vault, `deposit_amt += amount` (shuttle on L1).
+///   - delegate to ER, then ER `claim_deposit`: `free_collateral += deposit_amt; deposit_amt = 0`.
+///   - ER `request_withdraw`: `free_collateral -= amt; withdraw_amt += amt`.
+///   - commit+undelegate, then L1 `settle_withdraw`: vault -> trader for `withdraw_amt`, zero it.
+/// Both fields name USDC that is physically in the vault but not (yet) counted in `free_collateral`,
+/// so the global invariant becomes:
+///   vault == Σ free_collateral + Σ position.collateral + pool_usdc + insurance_fund
+///            + Σ shuttle.deposit_amt + Σ shuttle.withdraw_amt
+#[account]
+#[derive(InitSpace)]
+pub struct CollateralShuttle {
+    pub owner: Pubkey,
+    pub deposit_amt: u64,  // staged on L1, waiting to be claimed into free_collateral on the ER
+    pub withdraw_amt: u64, // debited from free_collateral on the ER, waiting to be paid out on L1
+    pub bump: u8,
+}
+
 /// Max concurrent positions a trader can hold per market (the on-chain slot cap).
 pub const MAX_POSITIONS: usize = 8;
 
@@ -166,4 +186,5 @@ pub struct PositionBook {
 //   LpPosition    [b"lp", owner, pool]
 //   UserBalance   [b"user", owner]
 //   Position      [b"position", owner, market]
+//   Shuttle       [b"shuttle", owner]   (bidirectional L1<->ER collateral staging buffer)
 //   vault auth    [b"vault_auth"]   (authority of the single program-owned USDC token account)

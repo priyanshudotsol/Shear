@@ -36,8 +36,23 @@ export const pda = {
     PublicKey.findProgramAddressSync([enc.encode("user_uc"), owner.toBuffer()], programId)[0],
   position: (owner: PublicKey, market: PublicKey) =>
     PublicKey.findProgramAddressSync([enc.encode("posbook_uc"), owner.toBuffer(), market.toBuffer()], programId)[0],
+  // Per-trader collateral staging buffer (bounces L1<->ER to move USDC in/out of free_collateral).
+  shuttle: (owner: PublicKey) =>
+    PublicKey.findProgramAddressSync([enc.encode("shuttle_uc"), owner.toBuffer()], programId)[0],
   vaultAuth: () => PublicKey.findProgramAddressSync([enc.encode("vault_auth_uc")], programId)[0],
+  vault: () => PublicKey.findProgramAddressSync([enc.encode("vault_uc")], programId)[0],
 };
+
+// Live USDC balance held in the protocol vault PDA — real on-chain custody (LP liquidity + open
+// collateral). Proof for a reviewer that real tokens back the protocol.
+export async function fetchVaultUsdc(): Promise<number | null> {
+  try {
+    const res = await baseConn.getTokenAccountBalance(pda.vault());
+    return res.value.uiAmount ?? 0;
+  } catch {
+    return null;
+  }
+}
 
 // Decoded account shapes (snake_case from the IDL). BN-like values come back as
 // anchor BN; we normalise to number/string at the edges.
@@ -155,6 +170,18 @@ export async function fetchUserBalanceFrom(conn: Connection, owner: PublicKey): 
   const u = await fetchDecoded(conn, pda.user(owner), "UserBalance");
   if (!u) return null;
   return n(u.free_collateral) / SCALE;
+}
+
+// Trader's collateral shuttle staging amounts (USDC). deposit_amt = staged on L1 awaiting an ER
+// claim; withdraw_amt = debited on the ER awaiting an L1 settle. Reads raw, so it works whether the
+// shuttle is on L1 or delegated. Returns null if the shuttle has never been created.
+export async function fetchShuttle(
+  conn: Connection,
+  owner: PublicKey
+): Promise<{ depositAmt: number; withdrawAmt: number } | null> {
+  const s = await fetchDecoded(conn, pda.shuttle(owner), "CollateralShuttle");
+  if (!s) return null;
+  return { depositAmt: n(s.deposit_amt) / SCALE, withdrawAmt: n(s.withdraw_amt) / SCALE };
 }
 
 // The session key currently authorized to sign this trader's ER ops (base58), from a given layer.

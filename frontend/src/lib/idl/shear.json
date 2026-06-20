@@ -162,6 +162,79 @@
       ]
     },
     {
+      "name": "claim_deposit",
+      "discriminator": [
+        201,
+        106,
+        1,
+        224,
+        122,
+        144,
+        210,
+        155
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "signer": true
+        },
+        {
+          "name": "user_balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  95,
+                  117,
+                  99
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user_balance.owner",
+                "account": "UserBalance"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shuttle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  117,
+                  116,
+                  116,
+                  108,
+                  101,
+                  95,
+                  117,
+                  99
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shuttle.owner",
+                "account": "CollateralShuttle"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "close_position",
       "discriminator": [
         123,
@@ -1208,6 +1281,173 @@
       "args": []
     },
     {
+      "name": "delegate_shuttle",
+      "discriminator": [
+        135,
+        52,
+        144,
+        18,
+        166,
+        14,
+        83,
+        83
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "signer": true
+        },
+        {
+          "name": "buffer_shuttle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shuttle"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                79,
+                156,
+                58,
+                173,
+                104,
+                127,
+                1,
+                116,
+                32,
+                255,
+                102,
+                109,
+                162,
+                51,
+                147,
+                67,
+                82,
+                232,
+                108,
+                87,
+                176,
+                73,
+                218,
+                26,
+                69,
+                53,
+                58,
+                57,
+                132,
+                234,
+                230,
+                71
+              ]
+            }
+          }
+        },
+        {
+          "name": "delegation_record_shuttle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shuttle"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "delegation_metadata_shuttle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  45,
+                  109,
+                  101,
+                  116,
+                  97,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shuttle"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "shuttle",
+          "writable": true
+        },
+        {
+          "name": "owner_program",
+          "address": "6MmNvgdPtujGAnoFFn3V74RYR6vgyTVA7EAKPBEussGi"
+        },
+        {
+          "name": "delegation_program",
+          "address": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "delegate_user_balance",
       "discriminator": [
         226,
@@ -1414,17 +1654,20 @@
           }
         },
         {
-          "name": "user_balance",
+          "name": "shuttle",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  117,
                   115,
+                  104,
+                  117,
+                  116,
+                  116,
+                  108,
                   101,
-                  114,
                   95,
                   117,
                   99
@@ -1742,6 +1985,55 @@
               {
                 "kind": "account",
                 "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "init_user_balance",
+      "discriminator": [
+        5,
+        126,
+        136,
+        248,
+        253,
+        80,
+        93,
+        163
+      ],
+      "accounts": [
+        {
+          "name": "trader",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "user_balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  95,
+                  117,
+                  99
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "trader"
               }
             ]
           }
@@ -2293,6 +2585,84 @@
       ]
     },
     {
+      "name": "request_withdraw",
+      "discriminator": [
+        137,
+        95,
+        187,
+        96,
+        250,
+        138,
+        31,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "signer": true
+        },
+        {
+          "name": "user_balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  95,
+                  117,
+                  99
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user_balance.owner",
+                "account": "UserBalance"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shuttle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  117,
+                  116,
+                  116,
+                  108,
+                  101,
+                  95,
+                  117,
+                  99
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shuttle.owner",
+                "account": "CollateralShuttle"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "schedule_funding_crank",
       "discriminator": [
         217,
@@ -2677,126 +3047,16 @@
       ]
     },
     {
-      "name": "undelegate_shared",
+      "name": "settle_withdraw",
       "discriminator": [
-        87,
-        218,
-        19,
-        27,
-        232,
-        234,
-        240,
-        211
-      ],
-      "accounts": [
-        {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "market",
-          "writable": true
-        },
-        {
-          "name": "pool",
-          "writable": true
-        },
-        {
-          "name": "magic_program",
-          "address": "Magic11111111111111111111111111111111111111"
-        },
-        {
-          "name": "magic_context",
-          "writable": true,
-          "address": "MagicContext1111111111111111111111111111111"
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "undelegate_trader",
-      "discriminator": [
-        184,
-        179,
-        103,
-        70,
-        157,
-        157,
-        165,
-        108
-      ],
-      "accounts": [
-        {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "user_balance",
-          "writable": true
-        },
-        {
-          "name": "position",
-          "writable": true
-        },
-        {
-          "name": "magic_program",
-          "address": "Magic11111111111111111111111111111111111111"
-        },
-        {
-          "name": "magic_context",
-          "writable": true,
-          "address": "MagicContext1111111111111111111111111111111"
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "undelegate_user",
-      "discriminator": [
-        116,
-        139,
-        246,
-        224,
-        235,
+        54,
+        211,
+        155,
         172,
+        133,
         97,
-        25
-      ],
-      "accounts": [
-        {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "user_balance",
-          "writable": true
-        },
-        {
-          "name": "magic_program",
-          "address": "Magic11111111111111111111111111111111111111"
-        },
-        {
-          "name": "magic_context",
-          "writable": true,
-          "address": "MagicContext1111111111111111111111111111111"
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "withdraw_collateral",
-      "discriminator": [
-        115,
-        135,
-        168,
-        106,
-        139,
-        214,
-        138,
-        150
+        12,
+        191
       ],
       "accounts": [
         {
@@ -2826,17 +3086,20 @@
           }
         },
         {
-          "name": "user_balance",
+          "name": "shuttle",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  117,
                   115,
+                  104,
+                  117,
+                  116,
+                  116,
+                  108,
                   101,
-                  114,
                   95,
                   117,
                   99
@@ -2904,12 +3167,117 @@
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
-      "args": [
+      "args": []
+    },
+    {
+      "name": "undelegate_shared",
+      "discriminator": [
+        87,
+        218,
+        19,
+        27,
+        232,
+        234,
+        240,
+        211
+      ],
+      "accounts": [
         {
-          "name": "amount",
-          "type": "u64"
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "pool",
+          "writable": true
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        },
+        {
+          "name": "magic_context",
+          "writable": true,
+          "address": "MagicContext1111111111111111111111111111111"
         }
-      ]
+      ],
+      "args": []
+    },
+    {
+      "name": "undelegate_shuttle",
+      "discriminator": [
+        251,
+        11,
+        108,
+        219,
+        132,
+        211,
+        126,
+        234
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "shuttle",
+          "writable": true
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        },
+        {
+          "name": "magic_context",
+          "writable": true,
+          "address": "MagicContext1111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "undelegate_trader",
+      "discriminator": [
+        184,
+        179,
+        103,
+        70,
+        157,
+        157,
+        165,
+        108
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "user_balance",
+          "writable": true
+        },
+        {
+          "name": "position",
+          "writable": true
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        },
+        {
+          "name": "magic_context",
+          "writable": true,
+          "address": "MagicContext1111111111111111111111111111111"
+        }
+      ],
+      "args": []
     },
     {
       "name": "withdraw_liquidity",
@@ -3068,6 +3436,19 @@
   ],
   "accounts": [
     {
+      "name": "CollateralShuttle",
+      "discriminator": [
+        191,
+        138,
+        13,
+        233,
+        220,
+        30,
+        106,
+        59
+      ]
+    },
+    {
       "name": "GlobalConfig",
       "discriminator": [
         149,
@@ -3187,6 +3568,19 @@
       ]
     },
     {
+      "name": "DepositClaimed",
+      "discriminator": [
+        119,
+        147,
+        244,
+        76,
+        141,
+        103,
+        170,
+        176
+      ]
+    },
+    {
       "name": "FundingAccrued",
       "discriminator": [
         245,
@@ -3301,6 +3695,19 @@
         117,
         101,
         121
+      ]
+    },
+    {
+      "name": "WithdrawRequested",
+      "discriminator": [
+        114,
+        16,
+        240,
+        206,
+        93,
+        128,
+        151,
+        39
       ]
     }
   ],
@@ -3453,6 +3860,43 @@
       }
     },
     {
+      "name": "CollateralShuttle",
+      "docs": [
+        "One per trader. A bidirectional staging buffer that lets a trader move real USDC in/out of",
+        "their (delegated) `free_collateral` WITHOUT undelegating the live trading accounts.",
+        "Seeds: `[b\"shuttle\", owner]`. Bounces L1 -> ER -> L1:",
+        "- L1 `deposit_collateral`: real USDC -> vault, `deposit_amt += amount` (shuttle on L1).",
+        "- delegate to ER, then ER `claim_deposit`: `free_collateral += deposit_amt; deposit_amt = 0`.",
+        "- ER `request_withdraw`: `free_collateral -= amt; withdraw_amt += amt`.",
+        "- commit+undelegate, then L1 `settle_withdraw`: vault -> trader for `withdraw_amt`, zero it.",
+        "Both fields name USDC that is physically in the vault but not (yet) counted in `free_collateral`,",
+        "so the global invariant becomes:",
+        "vault == Σ free_collateral + Σ position.collateral + pool_usdc + insurance_fund",
+        "+ Σ shuttle.deposit_amt + Σ shuttle.withdraw_amt"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "deposit_amt",
+            "type": "u64"
+          },
+          {
+            "name": "withdraw_amt",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "CollateralWithdrawn",
       "type": {
         "kind": "struct",
@@ -3505,6 +3949,25 @@
           {
             "name": "max_net_util_bps",
             "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DepositClaimed",
+      "docs": [
+        "ER: staged deposit folded into spendable free_collateral."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
           }
         ]
       }
@@ -4256,6 +4719,25 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WithdrawRequested",
+      "docs": [
+        "ER: free_collateral debited and staged on the shuttle for L1 payout."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
           }
         ]
       }

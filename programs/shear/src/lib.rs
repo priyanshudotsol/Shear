@@ -52,12 +52,15 @@ pub mod shear {
         admin::set_paused(ctx, paused)
     }
 
-    // ---- collateral (L1) ----
+    // ---- collateral (L1, via the per-trader staging shuttle) ----
+    pub fn init_user_balance(ctx: Context<InitUserBalance>) -> Result<()> {
+        collateral::init_user_balance(ctx)
+    }
     pub fn deposit_collateral(ctx: Context<DepositCollateral>, amount: u64) -> Result<()> {
         collateral::deposit_collateral(ctx, amount)
     }
-    pub fn withdraw_collateral(ctx: Context<WithdrawCollateral>, amount: u64) -> Result<()> {
-        collateral::withdraw_collateral(ctx, amount)
+    pub fn settle_withdraw(ctx: Context<SettleWithdraw>) -> Result<()> {
+        collateral::settle_withdraw(ctx)
     }
     pub fn faucet(ctx: Context<Faucet>) -> Result<()> {
         collateral::faucet(ctx)
@@ -93,8 +96,18 @@ pub mod shear {
     pub fn undelegate_trader(ctx: Context<CommitTrader>) -> Result<()> {
         session::undelegate_trader(ctx)
     }
-    pub fn undelegate_user(ctx: Context<CommitUser>) -> Result<()> {
-        session::undelegate_user(ctx)
+    // collateral shuttle: deposit/withdraw without undelegating the trading accounts
+    pub fn delegate_shuttle(ctx: Context<DelegateShuttle>) -> Result<()> {
+        session::delegate_shuttle(ctx)
+    }
+    pub fn claim_deposit(ctx: Context<ShuttleMove>) -> Result<()> {
+        session::claim_deposit(ctx)
+    }
+    pub fn request_withdraw(ctx: Context<ShuttleMove>, amount: u64) -> Result<()> {
+        session::request_withdraw(ctx, amount)
+    }
+    pub fn undelegate_shuttle(ctx: Context<CommitShuttle>) -> Result<()> {
+        session::undelegate_shuttle(ctx)
     }
     pub fn commit_shared(ctx: Context<CommitShared>) -> Result<()> {
         session::commit_shared(ctx)

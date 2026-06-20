@@ -84,8 +84,16 @@ export async function faucet(wallet: SignerWallet, usdcMint: PublicKey): Promise
     .rpc();
 }
 
-// Deposit real USDC into the trader's on-chain free collateral (UserBalance). L1 instruction -
-// must run while UserBalance is on the base layer (i.e. not mid-session-delegated).
+// Create the trader's UserBalance once, on L1, before delegation. Idempotent at the call site:
+// callers should skip this if the account already exists (init fails on a live account).
+export async function initUserBalance(wallet: SignerWallet): Promise<string> {
+  const program = getProgram(wallet);
+  return program.methods.initUserBalance().accounts({ trader: wallet.publicKey }).rpc();
+}
+
+// L1: pull real USDC into the vault and STAGE it on the trader's shuttle (shuttle.deposit_amt).
+// This does NOT credit free_collateral — that happens on the ER via claim_deposit. Works whether or
+// not UserBalance is delegated, because the shuttle is a separate account that lives on L1 here.
 export async function depositCollateral(
   wallet: SignerWallet,
   usdcMint: PublicKey,
@@ -102,17 +110,18 @@ export async function depositCollateral(
     .rpc();
 }
 
-// Withdraw real USDC from free collateral back to the wallet (vault -> ATA). Always settles on L1.
-export async function withdrawCollateral(
-  wallet: SignerWallet,
-  usdcMint: PublicKey,
-  amountUsdc: number
-): Promise<string> {
+// L1: pay out everything the trader debited from free_collateral via request_withdraw on the ER
+// (shuttle.withdraw_amt -> wallet, vault -> ATA). The shuttle must already be back on L1 (undelegated)
+// carrying the committed withdraw_amt. Pays the whole staged amount; no parameter.
+export async function settleWithdraw(wallet: SignerWallet, usdcMint: PublicKey): Promise<string> {
   const program = getProgram(wallet);
   const traderUsdc = getAssociatedTokenAddressSync(usdcMint, wallet.publicKey);
   return program.methods
-    .withdrawCollateral(toBase(amountUsdc))
+    .settleWithdraw()
     .accounts({ trader: wallet.publicKey, traderUsdc, tokenProgram: TOKEN_PROGRAM_ID })
+    .preInstructions([
+      createAssociatedTokenAccountIdempotentInstruction(wallet.publicKey, traderUsdc, wallet.publicKey, usdcMint),
+    ])
     .rpc();
 }
 

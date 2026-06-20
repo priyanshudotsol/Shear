@@ -6,6 +6,7 @@
 
 use crate::constants::*;
 use crate::error::ShearError;
+use crate::events::{DepositClaimed, WithdrawRequested};
 use crate::state::*;
 use anchor_lang::prelude::*;
 use ephemeral_rollups_sdk::anchor::{commit, delegate};
@@ -164,27 +165,106 @@ pub fn undelegate_trader(ctx: Context<CommitTrader>) -> Result<()> {
     Ok(())
 }
 
-// ---- undelegate ONLY the user_balance (so it can be topped up on L1 without touching positions) ----
+// ---- collateral shuttle: move USDC in/out of free_collateral WITHOUT undelegating positions ----
+//
+// The trading unit (UserBalance + PositionBook) stays continuously delegated. To add or pull
+// collateral mid-session we bounce a SEPARATE per-trader `CollateralShuttle` through the ER:
+//   L1 deposit_collateral -> delegate_shuttle -> ER claim_deposit / request_withdraw
+//      -> undelegate_shuttle -> L1 settle_withdraw.
+// `claim_deposit`/`request_withdraw` run on the ER and touch BOTH the (already-delegated) UserBalance
+// and the (just-delegated) shuttle, so both must be pinned to the same validator as the market.
 
+#[delegate]
+#[derive(Accounts)]
+pub struct DelegateShuttle<'info> {
+    pub payer: Signer<'info>,
+    /// CHECK: delegated PDA
+    #[account(mut, del)]
+    pub shuttle: AccountInfo<'info>,
+}
+pub fn delegate_shuttle(ctx: Context<DelegateShuttle>) -> Result<()> {
+    let owner = ctx.accounts.payer.key();
+    ctx.accounts
+        .delegate_shuttle(&ctx.accounts.payer, &[SHUTTLE_SEED, owner.as_ref()], cfg(ctx.remaining_accounts))?;
+    Ok(())
+}
+
+/// ER context: both accounts are delegated, so the program is their effective owner here.
+#[derive(Accounts)]
+pub struct ShuttleMove<'info> {
+    pub signer: Signer<'info>,
+    #[account(mut, seeds = [USER_SEED, user_balance.owner.as_ref()], bump = user_balance.bump)]
+    pub user_balance: Account<'info, UserBalance>,
+    #[account(
+        mut,
+        seeds = [SHUTTLE_SEED, shuttle.owner.as_ref()],
+        bump = shuttle.bump,
+        constraint = shuttle.owner == user_balance.owner @ ShearError::Unauthorized
+    )]
+    pub shuttle: Account<'info, CollateralShuttle>,
+}
+
+fn authorize_shuttle(ub: &UserBalance, signer: &Pubkey) -> Result<()> {
+    require!(
+        *signer == ub.owner || (*signer == ub.session_authority && ub.session_authority != Pubkey::default()),
+        ShearError::Unauthorized
+    );
+    Ok(())
+}
+
+/// ER: fold staged deposit into spendable free_collateral.
+pub fn claim_deposit(ctx: Context<ShuttleMove>) -> Result<()> {
+    authorize_shuttle(&ctx.accounts.user_balance, &ctx.accounts.signer.key())?;
+    let amount = ctx.accounts.shuttle.deposit_amt;
+    if amount == 0 {
+        return Ok(());
+    }
+    ctx.accounts.user_balance.free_collateral = ctx
+        .accounts
+        .user_balance
+        .free_collateral
+        .checked_add(amount)
+        .ok_or(ShearError::MathOverflow)?;
+    ctx.accounts.shuttle.deposit_amt = 0;
+    emit!(DepositClaimed { owner: ctx.accounts.shuttle.owner, amount });
+    Ok(())
+}
+
+/// ER: debit free_collateral and stage it for payout on L1. Free collateral never includes funds
+/// locked in an open position (moved out at open), so withdrawing it is always solvent.
+pub fn request_withdraw(ctx: Context<ShuttleMove>, amount: u64) -> Result<()> {
+    authorize_shuttle(&ctx.accounts.user_balance, &ctx.accounts.signer.key())?;
+    require!(amount > 0, ShearError::InsufficientCollateral);
+    require!(amount <= ctx.accounts.user_balance.free_collateral, ShearError::InsufficientCollateral);
+    ctx.accounts.user_balance.free_collateral -= amount;
+    ctx.accounts.shuttle.withdraw_amt = ctx
+        .accounts
+        .shuttle
+        .withdraw_amt
+        .checked_add(amount)
+        .ok_or(ShearError::MathOverflow)?;
+    emit!(WithdrawRequested { owner: ctx.accounts.shuttle.owner, amount });
+    Ok(())
+}
+
+/// ER -> L1: commit the shuttle's latest deposit_amt/withdraw_amt and return it to L1 so the trader
+/// can `settle_withdraw` (or `deposit_collateral` again). Leaves UserBalance + PositionBook delegated.
 #[commit]
 #[derive(Accounts)]
-pub struct CommitUser<'info> {
+pub struct CommitShuttle<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
     #[account(mut)]
-    pub user_balance: Account<'info, UserBalance>,
+    pub shuttle: Account<'info, CollateralShuttle>,
 }
-
-/// Bring just the trader's UserBalance back to L1 (commit its latest free_collateral, undelegate).
-/// Used to deposit more collateral mid-session, then re-delegate — without disturbing open positions.
-pub fn undelegate_user(ctx: Context<CommitUser>) -> Result<()> {
-    ctx.accounts.user_balance.exit(&crate::ID)?;
+pub fn undelegate_shuttle(ctx: Context<CommitShuttle>) -> Result<()> {
+    ctx.accounts.shuttle.exit(&crate::ID)?;
     MagicIntentBundleBuilder::new(
         ctx.accounts.payer.to_account_info(),
         ctx.accounts.magic_context.to_account_info(),
         ctx.accounts.magic_program.to_account_info(),
     )
-    .commit_and_undelegate(&[ctx.accounts.user_balance.to_account_info()])
+    .commit_and_undelegate(&[ctx.accounts.shuttle.to_account_info()])
     .build_and_invoke()?;
     Ok(())
 }

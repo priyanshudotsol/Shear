@@ -33,10 +33,40 @@ export interface ChainEvent {
   blockTime: number | null;
   source: "base" | "ER";
   label: string;
+  detail?: string; // e.g. "+$2.00" for a USDC movement
   err: boolean;
 }
 
-async function parseLabel(conn: Connection, signature: string): Promise<string | null> {
+// USDC amount (1e6) that moved in an event, formatted with sign, for the money-moving events.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function amountDetail(name: string, data: any): string | undefined {
+  const usd = (v: any) => (v == null ? null : Number(v.toString()) / 1e6);
+  const fmt = (n: number, sign: string) => `${sign}$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  switch (name) {
+    case "CollateralDeposited":
+    case "LiquidityDeposited": {
+      const a = usd(data.amount);
+      return a == null ? undefined : fmt(a, "+");
+    }
+    case "CollateralWithdrawn":
+    case "LiquidityWithdrawn": {
+      const a = usd(data.amount);
+      return a == null ? undefined : fmt(a, "−");
+    }
+    case "PositionOpened": {
+      const a = usd(data.collateral);
+      return a == null ? undefined : `${fmt(a, "")} collateral`;
+    }
+    case "PositionClosed": {
+      const a = usd(data.settlement);
+      return a == null ? undefined : `${fmt(a, "")} out`;
+    }
+    default:
+      return undefined;
+  }
+}
+
+async function parseLabel(conn: Connection, signature: string): Promise<{ label: string; detail?: string } | null> {
   try {
     const tx = await conn.getTransaction(signature, {
       maxSupportedTransactionVersion: 0,
@@ -45,7 +75,7 @@ async function parseLabel(conn: Connection, signature: string): Promise<string |
     const logs = tx?.meta?.logMessages;
     if (!logs) return null;
     for (const ev of parser.parseLogs(logs)) {
-      if (LABELS[ev.name]) return LABELS[ev.name];
+      if (LABELS[ev.name]) return { label: LABELS[ev.name], detail: amountDetail(ev.name, ev.data) };
     }
     return null;
   } catch {
@@ -56,39 +86,43 @@ async function parseLabel(conn: Connection, signature: string): Promise<string |
 export function useChainEvents(intervalMs = 30_000): { events: ChainEvent[]; loading: boolean } {
   const [events, setEvents] = useState<ChainEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const labelCache = useRef<Map<string, string>>(new Map());
+  const labelCache = useRef<Map<string, { label: string; detail?: string }>>(new Map());
 
   const load = useCallback(async () => {
     try {
       const [baseSigs, erSigs] = await Promise.all([
-        baseConn.getSignaturesForAddress(programId, { limit: 8 }).catch(() => []),
-        erConn.getSignaturesForAddress(programId, { limit: 8 }).catch(() => []),
+        baseConn.getSignaturesForAddress(programId, { limit: 25 }).catch(() => []),
+        erConn.getSignaturesForAddress(programId, { limit: 25 }).catch(() => []),
       ]);
       const merged = [
         ...baseSigs.map((s) => ({ ...s, source: "base" as const, conn: baseConn })),
         ...erSigs.map((s) => ({ ...s, source: "ER" as const, conn: erConn })),
       ]
         .sort((a, b) => (b.blockTime ?? 0) - (a.blockTime ?? 0))
-        .slice(0, 16);
+        .slice(0, 40);
 
       // parse labels for any new signatures (cached)
       await Promise.all(
         merged.map(async (s) => {
           if (!labelCache.current.has(s.signature)) {
-            const label = await parseLabel(s.conn, s.signature);
-            labelCache.current.set(s.signature, label ?? "Program transaction");
+            const parsed = await parseLabel(s.conn, s.signature);
+            labelCache.current.set(s.signature, parsed ?? { label: "Program transaction" });
           }
         })
       );
 
       setEvents(
-        merged.map((s) => ({
-          signature: s.signature,
-          blockTime: s.blockTime ?? null,
-          source: s.source,
-          label: labelCache.current.get(s.signature) ?? "Program transaction",
-          err: !!s.err,
-        }))
+        merged.map((s) => {
+          const c = labelCache.current.get(s.signature);
+          return {
+            signature: s.signature,
+            blockTime: s.blockTime ?? null,
+            source: s.source,
+            label: c?.label ?? "Program transaction",
+            detail: c?.detail,
+            err: !!s.err,
+          };
+        })
       );
     } catch {
       /* keep last */

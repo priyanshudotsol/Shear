@@ -6,8 +6,11 @@ const anchor = require("../frontend/node_modules/@coral-xyz/anchor");
 const { PublicKey, Connection, Keypair } = require("../frontend/node_modules/@solana/web3.js");
 
 const PID = new PublicKey("6MmNvgdPtujGAnoFFn3V74RYR6vgyTVA7EAKPBEussGi");
-const BASE = "https://api.devnet.solana.com";
+const { BASE_RPC: BASE } = require("./_env.cjs");
 const idl = require("../frontend/src/lib/idl/shear.json");
+// Pin the shared market+pool to the ONE ER validator the frontend also pins (co-delegation rule).
+const ER_VALIDATOR = new PublicKey(process.env.ER_VALIDATOR || "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57");
+const VR = [{ pubkey: ER_VALIDATOR, isWritable: false, isSigner: false }];
 
 const sym = Buffer.alloc(16); sym.write("SOL-ETH");
 const [market] = PublicKey.findProgramAddressSync([Buffer.from("market_uc"), sym], PID);
@@ -25,9 +28,9 @@ const [pool] = PublicKey.findProgramAddressSync([Buffer.from("pool_uc"), market.
   const provider = new anchor.AnchorProvider(conn, wallet, { commitment: "confirmed" });
   const program = new anchor.Program(idl, provider);
 
-  const sig1 = await program.methods.delegateMarket([...sym]).accounts({ payer: kp.publicKey, market }).rpc({ skipPreflight: true });
+  const sig1 = await program.methods.delegateMarket([...sym]).accounts({ payer: kp.publicKey, market }).remainingAccounts(VR).rpc({ skipPreflight: true });
   console.log("delegate_market:", sig1);
-  const sig2 = await program.methods.delegatePool().accounts({ payer: kp.publicKey, market, pool }).rpc({ skipPreflight: true });
+  const sig2 = await program.methods.delegatePool().accounts({ payer: kp.publicKey, market, pool }).remainingAccounts(VR).rpc({ skipPreflight: true });
   console.log("delegate_pool:  ", sig2);
   console.log("session started — market + pool delegated to the ER. Trading is live.");
 })().catch((e) => { console.error("FAILED:", e.message || e); process.exit(1); });

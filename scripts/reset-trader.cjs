@@ -6,9 +6,24 @@ const anchor = require("../frontend/node_modules/@coral-xyz/anchor");
 const { PublicKey, Connection, Keypair, Transaction } = require("../frontend/node_modules/@solana/web3.js");
 
 const PID = new PublicKey("6MmNvgdPtujGAnoFFn3V74RYR6vgyTVA7EAKPBEussGi");
+const DLP = new PublicKey("DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh");
 const idl = require("../frontend/src/lib/idl/shear.json");
+const { BASE_RPC, ER_RPC } = require("./_env.cjs");
 const sym = Buffer.alloc(16); sym.write("SOL-ETH");
 const [market] = PublicKey.findProgramAddressSync([Buffer.from("market_uc"), sym], PID);
+
+// ER validator -> endpoint. An account can only be undelegated by the validator that holds it.
+const ER_ENDPOINT_BY_VALIDATOR = {
+  MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57: ER_RPC, // custom MagicBlock RPC (default/asia)
+  MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e: "https://devnet-eu.magicblock.app",
+  MUS3hc9TCw4cGC12vHNoYcCGzJG1txjgQLZWVoeNHNd: "https://devnet-us.magicblock.app",
+};
+async function validatorOf(base, addr) {
+  const [rec] = PublicKey.findProgramAddressSync([Buffer.from("delegation"), addr.toBuffer()], DLP);
+  const info = await base.getAccountInfo(rec);
+  if (!info || info.data.length < 40) return null;
+  return new PublicKey(info.data.subarray(8, 40)).toBase58();
+}
 
 (async () => {
   const userPk = new PublicKey(process.argv[2]);
@@ -17,14 +32,20 @@ const [market] = PublicKey.findProgramAddressSync([Buffer.from("market_uc"), sym
   const [userBalance] = PublicKey.findProgramAddressSync([Buffer.from("user_uc"), userPk.toBuffer()], PID);
   const [position] = PublicKey.findProgramAddressSync([Buffer.from("posbook_uc"), userPk.toBuffer(), market.toBuffer()], PID);
 
-  const base = new Connection("https://api.devnet.solana.com", "confirmed");
-  const erConn = new Connection("https://devnet.magicblock.app", "confirmed");
+  const base = new Connection(BASE_RPC, "confirmed");
 
-  // report current state
+  // report current state + which validator each is pinned to
+  let heldBy = null;
   for (const [n, k] of [["userBalance", userBalance], ["position", position]]) {
-    const b = await base.getAccountInfo(k), e = await erConn.getAccountInfo(k);
-    console.log(`${n}: L1 owner ${b ? b.owner.toBase58().slice(0, 12) : "none"} | onER ${!!e}`);
+    const b = await base.getAccountInfo(k);
+    const v = b && !b.owner.equals(PID) ? await validatorOf(base, k) : null;
+    if (v) heldBy = v;
+    console.log(`${n}: L1 owner ${b ? b.owner.toBase58().slice(0, 12) : "none"} | validator ${v || "(on L1 / none)"}`);
   }
+  // Send the undelegate to the validator that actually holds the accounts (default to asia/MAS1Dt9).
+  const erUrl = (heldBy && ER_ENDPOINT_BY_VALIDATOR[heldBy]) || ER_RPC;
+  console.log("undelegating via:", erUrl);
+  const erConn = new Connection(erUrl, "confirmed");
 
   const wallet = { publicKey: admin.publicKey, signTransaction: async (t) => (t.partialSign(admin), t), signAllTransactions: async (t) => (t.forEach((x) => x.partialSign(admin)), t) };
   const erProg = new anchor.Program(idl, new anchor.AnchorProvider(erConn, wallet, { commitment: "confirmed" }));

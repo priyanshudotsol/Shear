@@ -6,7 +6,7 @@ const anchor = require("../frontend/node_modules/@coral-xyz/anchor");
 const { PublicKey, Connection, Keypair } = require("../frontend/node_modules/@solana/web3.js");
 
 const PID = new PublicKey("6MmNvgdPtujGAnoFFn3V74RYR6vgyTVA7EAKPBEussGi");
-const ER = "https://devnet.magicblock.app";
+const { ER_RPC: ER } = require("./_env.cjs");
 const idl = require("../frontend/src/lib/idl/shear.json");
 
 const sym = Buffer.alloc(16); sym.write("SOL-ETH");

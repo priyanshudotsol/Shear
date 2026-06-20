@@ -11,6 +11,9 @@ pub const POOL_SEED: &[u8] = b"pool_uc";
 pub const LP_SEED: &[u8] = b"lp_uc";
 pub const USER_SEED: &[u8] = b"user_uc";
 pub const POSITION_SEED: &[u8] = b"posbook_uc";
+/// Per-trader collateral shuttle: bounces L1<->ER to move USDC in/out of `free_collateral`
+/// WITHOUT undelegating the live trading accounts (UserBalance + PositionBook).
+pub const SHUTTLE_SEED: &[u8] = b"shuttle_uc";
 pub const VAULT_AUTH_SEED: &[u8] = b"vault_auth_uc";
 pub const VAULT_SEED: &[u8] = b"vault_uc";
 pub const SESSION_TOKEN_SEED: &[u8] = b"session_token_v2";

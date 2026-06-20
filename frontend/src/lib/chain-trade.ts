@@ -2,9 +2,10 @@
 
 // Real ER trade flow for SHEAR - provisions the trader on L1, opens/closes on the MagicBlock ER,
 // and settles back to L1. Mirrors the proven sequence in tests/integration.ts:
-//   deposit_collateral + init_position + delegate_user_balance + delegate_position   (L1, one tx)
-//   open_position / close_position / add|remove_collateral                            (ER)
-//   undelegate_trader -> poll L1 until settled -> withdraw_collateral                 (ER then L1)
+//   init_user_balance + deposit_collateral(stage) + init_position + set_session_key + delegates  (L1)
+//   claim_deposit (shuttle) -> open_position / close_position / add|remove_collateral             (ER)
+//   request_withdraw (shuttle) -> undelegate_shuttle -> settle_withdraw                           (ER then L1)
+// Collateral moves in/out via the per-trader shuttle, so the trading accounts never have to undelegate.
 //
 // PREREQUISITE: the shared Market + Pool must already be delegated to the ER (an open session,
 // started by scripts/session-start.ts). Until then `chainMarket.delegated` is false and trading
@@ -16,7 +17,7 @@ import {
   Transaction,
   SystemProgram,
   LAMPORTS_PER_SOL,
-  type Connection,
+  Connection,
   type TransactionInstruction,
 } from "@solana/web3.js";
 import {
@@ -25,10 +26,10 @@ import {
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import idlJson from "./idl/shear.json";
-import { pda, programId, baseConn, erConn, fetchUserBalance, fetchUserBalanceFrom, fetchSessionAuthority, fetchTokenBalance, fetchPositions } from "./chain";
-import { FEEDS, PARAMS } from "./constants";
+import { pda, programId, baseConn, erConn, fetchUserBalance, fetchUserBalanceFrom, fetchSessionAuthority, fetchTokenBalance, fetchPositions, fetchShuttle } from "./chain";
+import { FEEDS, PARAMS, ER_VALIDATOR, DELEGATION_PROGRAM } from "./constants";
 import { getSessionKeypair } from "./session";
-import { withdrawCollateral, depositLiquidity, withdrawLiquidity, type SignerWallet } from "./chain-write";
+import { settleWithdraw, depositCollateral, depositLiquidity, withdrawLiquidity, type SignerWallet } from "./chain-write";
 
 const symbol16 = (symbol: string): number[] => {
   const b = new Uint8Array(16);
@@ -50,6 +51,30 @@ const toBase = (usdc: number) => new BN(Math.round(usdc * 1e6));
 const SOL_USD = new PublicKey(FEEDS.solUsd);
 const ETH_USD = new PublicKey(FEEDS.ethUsd);
 const MAGIC_PROGRAM = new PublicKey("Magic11111111111111111111111111111111111111");
+const ER_VALIDATOR_PK = new PublicKey(ER_VALIDATOR);
+const DLP = new PublicKey(DELEGATION_PROGRAM);
+
+// Co-delegation: pin EVERY delegation to the one validator (ER_VALIDATOR) so market/pool/user/position
+// always live on the same ER. The on-chain delegate handlers read the validator from the FIRST
+// remaining account (cfg(remaining_accounts)); pass it on every delegate*() call.
+const validatorRemaining = [{ pubkey: ER_VALIDATOR_PK, isWritable: false, isSigner: false }];
+
+// Which validator an account is currently delegated to (from its delegation-record PDA), or null if
+// not delegated / unreadable. The validator pubkey is the first 32 bytes after the 8-byte discriminator.
+async function delegatedValidator(addr: PublicKey): Promise<PublicKey | null> {
+  const [rec] = PublicKey.findProgramAddressSync([Buffer.from("delegation"), addr.toBuffer()], DLP);
+  const info = await baseConn.getAccountInfo(rec);
+  if (!info || info.data.length < 40) return null;
+  return new PublicKey(info.data.subarray(8, 40));
+}
+
+// True if the account is delegated but to a DIFFERENT validator than the shared market/pool — the
+// exact state that makes the Magic program reject trades with InvalidWritableAccount.
+async function isMisdelegated(addr: PublicKey): Promise<boolean> {
+  if (!(await isDelegated(addr))) return false;
+  const v = await delegatedValidator(addr);
+  return !!v && !v.equals(ER_VALIDATOR_PK);
+}
 
 // Deterministic, per-trader MagicBlock task id (offset past the funding crank's task_id=1).
 // 6 bytes of the owner key fit safely in a JS number; modulo keeps it bounded.
@@ -113,15 +138,15 @@ async function waitERReady(addrs: PublicKey[], timeoutMs = 25_000): Promise<void
 // accepts user_balance.session_authority as a valid signer.
 // Retries on InvalidWritableAccount: right after a (re-)delegation the validator may accept READS
 // before it accepts WRITES to the account, so the first write can bounce - a short backoff fixes it.
-async function sendERSession(owner: PublicKey, ix: TransactionInstruction, label = "ER tx"): Promise<string> {
+async function sendERSession(owner: PublicKey, ix: TransactionInstruction, label = "ER tx", conn: Connection = erConn): Promise<string> {
   const kp = getSessionKeypair(owner);
   for (let attempt = 1; ; attempt++) {
     const tx = new Transaction().add(ix);
     tx.feePayer = kp.publicKey;
-    tx.recentBlockhash = (await erConn.getLatestBlockhash()).blockhash;
+    tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
     tx.sign(kp);
     try {
-      return await sendChecked(erConn, tx.serialize(), label);
+      return await sendChecked(conn, tx.serialize(), label);
     } catch (e) {
       if (attempt < 5 && /InvalidWritableAccount|not.*delegated/i.test(String(e))) {
         await new Promise((r) => setTimeout(r, attempt * 2000));
@@ -130,6 +155,21 @@ async function sendERSession(owner: PublicKey, ix: TransactionInstruction, label
       throw e;
     }
   }
+}
+
+// MagicBlock devnet ER validators -> their RPC endpoints. An account delegated to validator X can
+// only be committed/undelegated by sending the ER tx to X. The default erConn is the MAS1Dt9 (asia)
+// validator; recovery of accounts stranded on eu/us must target the right endpoint.
+const ER_ENDPOINT_BY_VALIDATOR: Record<string, string> = {
+  MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57: "https://devnet.magicblock.app",
+  MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e: "https://devnet-eu.magicblock.app",
+  MUS3hc9TCw4cGC12vHNoYcCGzJG1txjgQLZWVoeNHNd: "https://devnet-us.magicblock.app",
+};
+// The ER connection that actually holds `addr` (by its pinned validator), or the default erConn.
+async function erConnFor(addr: PublicKey): Promise<Connection> {
+  const v = await delegatedValidator(addr);
+  const url = v ? ER_ENDPOINT_BY_VALIDATOR[v.toBase58()] : undefined;
+  return url && url !== erConn.rpcEndpoint ? new Connection(url, "confirmed") : erConn;
 }
 
 const sideArg = (side: "long" | "short") => (side === "long" ? { long: {} } : { short: {} });
@@ -148,24 +188,90 @@ const erAccounts = (signer: PublicKey, owner: PublicKey, symbol: string) => {
   };
 };
 
-// Collateral (+ fee headroom + small buffer) a position needs in free_collateral before opening.
+// Collateral a position needs in free_collateral before opening: the collateral itself + the open
+// fee (charged on notional = collateral × leverage) + a tiny 0.001 USDC rounding cushion. Rounded UP
+// to the micro-USDC base unit — NOT to a whole dollar. (The old Math.ceil rounded to whole USDC, so a
+// $1 @ 2x position deposited $2 and $10 deposited $11; the surplus just sat as idle free collateral.)
 function neededFree(collateralUsdc: number, leverage: number): number {
   const fee = collateralUsdc * leverage * (PARAMS.takerFeeBps / 1e4);
-  return Math.ceil((collateralUsdc + fee) * 1.02);
+  return Math.ceil((collateralUsdc + fee + 0.001) * 1e6) / 1e6;
 }
 
-// Undelegate ONLY user_balance back to L1 (so we can top up collateral), signed by the session key.
-async function undelegateUser(wallet: SignerWallet): Promise<void> {
-  const prog = program(wallet, erConn);
-  const sessionPk = getSessionKeypair(wallet.publicKey).publicKey;
-  const userBalance = pda.user(wallet.publicKey);
-  const ix = await prog.methods.undelegateUser().accounts({ payer: sessionPk, userBalance }).instruction();
-  await sendERSession(wallet.publicKey, ix, "undelegate_user");
-  const deadline = Date.now() + 30_000;
+// Wait until an account has returned to L1 (program-owned again) after a commit+undelegate.
+async function waitSettled(addr: PublicKey, timeoutMs = 30_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (!(await isDelegated(userBalance))) return;
+    if (!(await isDelegated(addr))) return;
     await new Promise((r) => setTimeout(r, 1500));
   }
+}
+
+// Make sure the session key has SOL to pay ER fees (a wallet-signed L1 top-up if it's run low).
+async function ensureSessionFunded(wallet: SignerWallet): Promise<void> {
+  const sessionKp = getSessionKeypair(wallet.publicKey);
+  if ((await baseConn.getBalance(sessionKp.publicKey)) < SESSION_KEY_FLOOR) {
+    await signSendL1(
+      wallet,
+      [SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: sessionKp.publicKey, lamports: SESSION_KEY_TOPUP })],
+      "fund session key"
+    );
+  }
+}
+
+// THE COLLATERAL SHUTTLE — move USDC in/out of free_collateral WITHOUT undelegating the trading
+// accounts. The shuttle (a separate per-trader PDA) bounces L1 -> ER -> L1; UserBalance + PositionBook
+// stay continuously delegated, so open positions keep running while collateral moves.
+
+// Claim a deposit that's already STAGED on the shuttle (shuttle.deposit_amt, set by an L1
+// deposit_collateral) into spendable free_collateral on the ER. Delegates the shuttle if needed,
+// folds it in (claim_deposit), then returns the (zeroed) shuttle to L1. No-op if nothing is staged.
+async function claimStagedDeposit(wallet: SignerWallet): Promise<void> {
+  const owner = wallet.publicKey;
+  const shuttle = pda.shuttle(owner);
+  const userBalance = pda.user(owner);
+  const staged = await fetchShuttle(baseConn, owner);
+  if (!staged || staged.depositAmt <= 0) return;
+  await ensureSessionFunded(wallet);
+  if (!(await isDelegated(shuttle))) {
+    const prog = program(wallet);
+    await signSendL1(wallet, [await prog.methods.delegateShuttle().accounts({ payer: owner, shuttle }).remainingAccounts(validatorRemaining).instruction()], "delegate shuttle");
+  }
+  await waitERReady([shuttle, userBalance]);
+  const sessionPk = getSessionKeypair(owner).publicKey;
+  const erp = program(wallet, erConn);
+  await sendERSession(owner, await erp.methods.claimDeposit().accounts({ signer: sessionPk, userBalance, shuttle }).instruction(), "claim_deposit");
+  await sendERSession(owner, await erp.methods.undelegateShuttle().accounts({ payer: sessionPk, shuttle }).instruction(), "undelegate_shuttle");
+  await waitSettled(shuttle);
+}
+
+// Top up free_collateral mid-session: stage real USDC on L1 (deposit_collateral), then claim it on
+// the ER via the shuttle. UserBalance can stay delegated the whole time.
+async function topUpViaShuttle(wallet: SignerWallet, usdcMint: PublicKey, amountUsdc: number): Promise<void> {
+  if (amountUsdc <= 0) return;
+  await depositCollateral(wallet, usdcMint, amountUsdc); // L1: vault += USDC, shuttle.deposit_amt += amt
+  await claimStagedDeposit(wallet); // ER: free_collateral += amt
+}
+
+// Withdraw free_collateral to the wallet as real USDC via the shuttle, WITHOUT undelegating the
+// trading accounts: request_withdraw on the ER (debits free_collateral, stages withdraw_amt), return
+// the shuttle to L1, then settle_withdraw (vault -> wallet). Requires UserBalance to be delegated.
+async function withdrawViaShuttle(wallet: SignerWallet, usdcMint: PublicKey, amountUsdc: number): Promise<void> {
+  if (amountUsdc <= 0) return;
+  const owner = wallet.publicKey;
+  const shuttle = pda.shuttle(owner);
+  const userBalance = pda.user(owner);
+  await ensureSessionFunded(wallet);
+  if (!(await isDelegated(shuttle))) {
+    const prog = program(wallet);
+    await signSendL1(wallet, [await prog.methods.delegateShuttle().accounts({ payer: owner, shuttle }).remainingAccounts(validatorRemaining).instruction()], "delegate shuttle");
+  }
+  await waitERReady([shuttle, userBalance]);
+  const sessionPk = getSessionKeypair(owner).publicKey;
+  const erp = program(wallet, erConn);
+  await sendERSession(owner, await erp.methods.requestWithdraw(toBase(amountUsdc)).accounts({ signer: sessionPk, userBalance, shuttle }).instruction(), "request_withdraw");
+  await sendERSession(owner, await erp.methods.undelegateShuttle().accounts({ payer: sessionPk, shuttle }).instruction(), "undelegate_shuttle");
+  await waitSettled(shuttle);
+  await settleWithdraw(wallet, usdcMint); // L1: vault -> wallet for the staged withdraw_amt
 }
 
 // Sign one L1 tx, send it, and throw if it failed on-chain.
@@ -196,11 +302,15 @@ async function signSendAllL1(wallet: SignerWallet, groups: { ixs: TransactionIns
   }
 }
 
-// Step 1 (L1): make sure the trader has collateral + a delegated position slot, ready to trade.
-// All the wallet-signed setup txs (deposit+init+session-key, then the two delegates) are signed in
-// ONE wallet approval via signAllTransactions and sent sequentially — so the trader gets a single
-// popup instead of 3-4 and can open before the market moves. The owner MUST sign these (the delegate
-// PDAs are seeded from the payer key, so the session key can't substitute). Idempotent: skips done steps.
+// Step 1 (L1 + ER): make sure the trader is provisioned and has enough free collateral, ready to
+// trade. The wallet-signed L1 setup txs (init balance + stage deposit + init position + session key,
+// then the delegates) are signed in ONE wallet approval via signAllTransactions; the staged deposit
+// is then credited onto the ER through the collateral shuttle (claim_deposit). The owner MUST sign the
+// L1 txs (delegate PDAs are seeded from the payer key). Idempotent: skips already-done steps.
+//
+// Money model: deposit_collateral only moves real USDC into the vault and STAGES it on the shuttle;
+// it never touches UserBalance. The staged amount becomes spendable free_collateral via claim_deposit
+// on the ER — so a top-up never has to undelegate the (live) trading accounts.
 export async function provisionTrader(
   wallet: SignerWallet,
   usdcMint: PublicKey,
@@ -215,6 +325,7 @@ export async function provisionTrader(
   const traderUsdc = getAssociatedTokenAddressSync(usdcMint, wallet.publicKey);
   const sessionKp = getSessionKeypair(wallet.publicKey);
   const fundIx = SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: sessionKp.publicKey, lamports: SESSION_KEY_TOPUP });
+  const need = neededFree(collateralUsdc, leverage);
 
   let ubDelegated = await isDelegated(userBalance);
   let posDelegated = await isDelegated(position);
@@ -252,27 +363,47 @@ export async function provisionTrader(
     }
   }
 
-  // Session-key mismatch recovery: if user_balance is delegated but the session_authority it has on
-  // record no longer matches THIS browser's session key (localStorage cleared, different browser, or
-  // a re-generated key), every ER trade fails authorize() with Unauthorized (0x1770). Bring
-  // user_balance back to L1 so the setup path below re-registers the current key via set_session_key
-  // and re-delegates. undelegate_user only needs the session key as payer (no authority relation).
-  if (ubDelegated) {
-    const onChainAuth = await fetchSessionAuthority(erConn, wallet.publicKey);
-    if (onChainAuth && onChainAuth !== sessionKp.publicKey.toBase58()) {
-      await undelegateUser(wallet);
+  // Validator-mismatch recovery (the InvalidWritableAccount cause): a delegated account pinned to a
+  // DIFFERENT ER validator than the shared market/pool can never trade — the Magic program runs every
+  // ER tx and rejects it because that account isn't delegated to the validator executing it. This
+  // happens when accounts were delegated without pinning a validator and the network default later
+  // moved. Bring the whole trader unit back to L1 so the delegate steps below re-pin it to ER_VALIDATOR.
+  if (ubDelegated || posDelegated) {
+    const mismatch = (ubDelegated && (await isMisdelegated(userBalance))) || (posDelegated && (await isMisdelegated(position)));
+    if (mismatch) {
+      await settleTraderToL1(wallet, symbol);
       ubDelegated = await isDelegated(userBalance);
+      posDelegated = await isDelegated(position);
     }
   }
 
-  // If user_balance is delegated but doesn't hold enough free collateral for this position, bring it
-  // back to L1 - you can't deposit into a delegated account. This flips ubDelegated false so the
-  // deposit + re-delegate flow below tops it up. (Open positions in the book are untouched.)
+  // Session-key mismatch recovery: if user_balance is delegated but the session_authority on record no
+  // longer matches THIS browser's session key (localStorage cleared, different browser, or a
+  // re-generated key), every ER trade fails authorize() with Unauthorized (0x1770). set_session_key is
+  // L1-only, so bring the WHOLE trader unit (user_balance + position) back to L1 together — never just
+  // one half (the shuttle handles collateral; the unit stays atomic) — then re-register + re-delegate.
+  if (ubDelegated) {
+    const onChainAuth = await fetchSessionAuthority(erConn, wallet.publicKey);
+    if (onChainAuth && onChainAuth !== sessionKp.publicKey.toBase58()) {
+      await settleTraderToL1(wallet, symbol);
+      ubDelegated = await isDelegated(userBalance);
+      posDelegated = await isDelegated(position);
+    }
+  }
+
+  // If user_balance is already delegated, top it up via the shuttle (no undelegation) — open positions
+  // keep running while collateral is added.
   if (ubDelegated) {
     const erFree = (await fetchUserBalanceFrom(erConn, wallet.publicKey)) ?? 0;
-    if (erFree < neededFree(collateralUsdc, leverage)) {
-      await undelegateUser(wallet);
-      ubDelegated = await isDelegated(userBalance);
+    if (erFree < need) {
+      const shortfall = need - erFree;
+      const walletUsdc = await fetchTokenBalance(wallet.publicKey, usdcMint);
+      if (walletUsdc < shortfall) {
+        throw new Error(
+          `Need ~${shortfall.toFixed(2)} USDC more collateral but your wallet holds ${walletUsdc.toFixed(2)}. Get devnet USDC at faucet.circle.com, then try again.`
+        );
+      }
+      await topUpViaShuttle(wallet, usdcMint, shortfall);
     }
   }
 
@@ -280,13 +411,19 @@ export async function provisionTrader(
 
   // Build every remaining wallet-signed setup tx, then sign them all in ONE approval below.
   const groups: { ixs: TransactionInstruction[]; label: string }[] = [];
+  let stagedDeposit = false; // true if a deposit needs claiming onto the ER after delegation
 
-  // --- setup tx: (session-key top-up) + deposit + init position + register session key ---
+  // --- setup tx: (session-key top-up) + init balance + stage deposit + init position + session key ---
   const setupIxs: TransactionInstruction[] = [];
   if (sessionLow && !(ubDelegated || posDelegated)) setupIxs.push(fundIx); // fold the top-up in on the clean path
   if (!ubDelegated) {
+    if (!(await exists(userBalance))) {
+      setupIxs.push(await prog.methods.initUserBalance().accounts({ trader: wallet.publicKey }).instruction());
+    }
+    // free already credited on L1, plus anything already staged on the shuttle from a prior deposit
     const free = (await fetchUserBalance(wallet.publicKey)) ?? 0;
-    const shortfall = Math.max(0, neededFree(collateralUsdc, leverage) - free);
+    const staged0 = (await fetchShuttle(baseConn, wallet.publicKey))?.depositAmt ?? 0;
+    const shortfall = Math.max(0, need - free - staged0);
     if (shortfall > 0) {
       // The protocol uses Circle's devnet USDC - get it from faucet.circle.com (we can't mint it).
       const walletUsdc = await fetchTokenBalance(wallet.publicKey, usdcMint);
@@ -303,6 +440,7 @@ export async function provisionTrader(
           .instruction()
       );
     }
+    stagedDeposit = shortfall > 0 || staged0 > 0;
     if (!(await exists(position))) {
       setupIxs.push(await prog.methods.initPosition().accounts({ owner: wallet.publicKey, market, position }).instruction());
     }
@@ -311,19 +449,26 @@ export async function provisionTrader(
   } else if (!(await exists(position))) {
     setupIxs.push(await prog.methods.initPosition().accounts({ owner: wallet.publicKey, market, position }).instruction());
   }
-  if (setupIxs.length) groups.push({ ixs: setupIxs, label: "deposit, init & session key" });
+  if (setupIxs.length) groups.push({ ixs: setupIxs, label: "init, deposit & session key" });
 
   // --- delegate the trader accounts to the ER (separate txs, the proven integration.ts ordering) ---
   if (!ubDelegated) {
-    groups.push({ ixs: [await prog.methods.delegateUserBalance().accounts({ payer: wallet.publicKey, userBalance }).instruction()], label: "delegate balance" });
+    groups.push({ ixs: [await prog.methods.delegateUserBalance().accounts({ payer: wallet.publicKey, userBalance }).remainingAccounts(validatorRemaining).instruction()], label: "delegate balance" });
   }
   if (!posDelegated) {
-    groups.push({ ixs: [await prog.methods.delegatePosition().accounts({ payer: wallet.publicKey, market, position }).instruction()], label: "delegate position" });
+    groups.push({ ixs: [await prog.methods.delegatePosition().accounts({ payer: wallet.publicKey, market, position }).remainingAccounts(validatorRemaining).instruction()], label: "delegate position" });
+  }
+  // delegate the shuttle in the SAME approval so claim_deposit (below) needs no extra popup
+  if (stagedDeposit && !(await isDelegated(pda.shuttle(wallet.publicKey)))) {
+    groups.push({ ixs: [await prog.methods.delegateShuttle().accounts({ payer: wallet.publicKey, shuttle: pda.shuttle(wallet.publicKey) }).remainingAccounts(validatorRemaining).instruction()], label: "delegate shuttle" });
   }
 
   // One popup for everything (or a single plain sign if there's only one tx).
   if (groups.length === 1) await signSendL1(wallet, groups[0].ixs, groups[0].label);
   else if (groups.length > 1) await signSendAllL1(wallet, groups);
+
+  // Credit the staged deposit onto the ER (claim_deposit -> free_collateral, then return the shuttle).
+  if (stagedDeposit) await claimStagedDeposit(wallet);
 }
 
 // Step 2 (ER): open a new position in `slot` (a free slot in the book). Provision first.
@@ -359,6 +504,7 @@ export async function openPositionER(
 async function ensureDelegatedForWrite(wallet: SignerWallet, symbol: string): Promise<void> {
   const prog = program(wallet);
   const market = pda.market(symbol);
+  const pool = pda.pool(market);
   const userBalance = pda.user(wallet.publicKey);
   const position = pda.position(wallet.publicKey, market);
   const sessionKp = getSessionKeypair(wallet.publicKey);
@@ -369,13 +515,30 @@ async function ensureDelegatedForWrite(wallet: SignerWallet, symbol: string): Pr
       "fund session key"
     );
   }
+  // If the trader unit is delegated to the WRONG validator (not co-located with market/pool), reset it
+  // to L1 first so the re-delegation below re-pins it to ER_VALIDATOR — otherwise every ER write to it
+  // is rejected with InvalidWritableAccount. (isDelegated stays true for a mis-pinned account, so the
+  // plain re-delegate guards below would never fire without this.)
+  if ((await isMisdelegated(userBalance)) || (await isMisdelegated(position))) {
+    await settleTraderToL1(wallet, symbol);
+  }
   let reDelegated = false;
+  // close/add/remove also WRITE the shared market+pool (Trade ctx). If an LP op or undelegate_shared
+  // left them on L1, the ER rejects the write with InvalidWritableAccount, so re-delegate them too.
+  if (!(await isDelegated(market))) {
+    await signSendL1(wallet, [await prog.methods.delegateMarket(symbol16(symbol)).accounts({ payer: wallet.publicKey, market }).remainingAccounts(validatorRemaining).instruction()], "re-delegate market");
+    reDelegated = true;
+  }
+  if (!(await isDelegated(pool))) {
+    await signSendL1(wallet, [await prog.methods.delegatePool().accounts({ payer: wallet.publicKey, market, pool }).remainingAccounts(validatorRemaining).instruction()], "re-delegate pool");
+    reDelegated = true;
+  }
   if (!(await isDelegated(userBalance))) {
-    await signSendL1(wallet, [await prog.methods.delegateUserBalance().accounts({ payer: wallet.publicKey, userBalance }).instruction()], "re-delegate balance");
+    await signSendL1(wallet, [await prog.methods.delegateUserBalance().accounts({ payer: wallet.publicKey, userBalance }).remainingAccounts(validatorRemaining).instruction()], "re-delegate balance");
     reDelegated = true;
   }
   if (!(await isDelegated(position))) {
-    await signSendL1(wallet, [await prog.methods.delegatePosition().accounts({ payer: wallet.publicKey, market, position }).instruction()], "re-delegate position");
+    await signSendL1(wallet, [await prog.methods.delegatePosition().accounts({ payer: wallet.publicKey, market, position }).remainingAccounts(validatorRemaining).instruction()], "re-delegate position");
     reDelegated = true;
   }
   await waitERReady([market, pda.pool(market), userBalance, position]);
@@ -391,13 +554,13 @@ export async function closePositionER(wallet: SignerWallet, symbol: string, slot
   return sendERSession(wallet.publicKey, ix, "close_position");
 }
 
-// Close a position AND pay the proceeds out to the wallet — what a trader expects from "Close".
-// Closing alone only moves settled equity into ER free_collateral; the cash-out needs an
-// undelegate->withdraw, which can only run when NO other positions are open (undelegating the book
-// while others are live would strand them). So: if this was the trader's last open position we
-// settle to L1 and withdraw all free collateral to the wallet; otherwise the proceeds stay in the
-// in-protocol balance until the last position closes (or "Close All"). Returns the close signature,
-// the amount withdrawn, and how many positions remain open.
+// Close a position AND pay the proceeds out to the wallet as real USDC — what a trader expects from
+// "Close". Closing on the ER moves the settled equity into free_collateral; the real USDC payout goes
+// through the collateral shuttle (request_withdraw on the ER -> settle_withdraw on L1). The trading
+// accounts stay delegated the WHOLE time — whether or not other positions remain open, the book keeps
+// running. The just-closed proceeds sit in free_collateral; any still-open positions keep their
+// collateral locked in the book, so withdrawing all free is always solvent.
+// Returns the close signature, the USDC withdrawn to the wallet, and how many positions remain.
 export async function closeAndWithdraw(
   wallet: SignerWallet,
   usdcMint: PublicKey,
@@ -408,14 +571,12 @@ export async function closeAndWithdraw(
   onStep?.("Closing…");
   const sig = await closePositionER(wallet, symbol, slot);
   const remaining = await fetchPositions(wallet.publicKey, symbol);
-  if (remaining.length > 0) return { sig, withdrawn: 0, remaining: remaining.length };
-  onStep?.("Settling to your wallet…");
-  await settleTraderToL1(wallet, symbol);
-  const free = (await fetchUserBalance(wallet.publicKey)) ?? 0;
-  if (free <= 0) return { sig, withdrawn: 0, remaining: 0 };
-  onStep?.("Withdrawing…");
-  await withdrawCollateral(wallet, usdcMint, free);
-  return { sig, withdrawn: free, remaining: 0 };
+  // proceeds are now in free_collateral on the ER; withdraw them via the shuttle without undelegating
+  const free = (await fetchUserBalanceFrom(erConn, wallet.publicKey)) ?? 0;
+  if (free <= 0) return { sig, withdrawn: 0, remaining: remaining.length };
+  onStep?.("Withdrawing USDC…");
+  await withdrawViaShuttle(wallet, usdcMint, free);
+  return { sig, withdrawn: free, remaining: remaining.length };
 }
 
 // Permissionless liquidation crank (ER). `crank_liquidate_one` has no signer account - the session
@@ -500,18 +661,21 @@ export async function removeCollateralER(wallet: SignerWallet, symbol: string, s
 }
 
 // Step 4 (ER -> L1): commit + undelegate the trader accounts, then wait for the L1 settlement so a
-// subsequent withdraw_collateral (chain-write) can pay real USDC out of the vault. Signed by the
-// session key (it's the fee payer on the ER; the undelegate ix has no owner check).
+// the trader unit is released back to L1. Withdrawals go through the shuttle (request_withdraw +
+// settle_withdraw), not this path. Signed by the session key (fee payer on the ER; no owner check).
 export async function settleTraderToL1(wallet: SignerWallet, symbol: string): Promise<string> {
-  const prog = program(wallet, erConn);
-  const sessionPk = getSessionKeypair(wallet.publicKey).publicKey;
   const userBalance = pda.user(wallet.publicKey);
   const position = pda.position(wallet.publicKey, pda.market(symbol));
+  // Route the undelegate to the validator that actually HOLDS these accounts — if they were stranded
+  // on a non-default validator, sending to the default ER would itself fail with InvalidWritableAccount.
+  const conn = await erConnFor(userBalance);
+  const prog = program(wallet, conn);
+  const sessionPk = getSessionKeypair(wallet.publicKey).publicKey;
   const ix = await prog.methods
     .undelegateTrader()
     .accounts({ payer: sessionPk, userBalance, position })
     .instruction();
-  const sig = await sendERSession(wallet.publicKey, ix, "undelegate_trader");
+  const sig = await sendERSession(wallet.publicKey, ix, "undelegate_trader", conn);
   // poll L1 until user_balance is program-owned again (undelegation has settled)
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
@@ -522,8 +686,10 @@ export async function settleTraderToL1(wallet: SignerWallet, symbol: string): Pr
 }
 
 // Full exit: CLOSE every open position first (settling an open position would strand it on L1 and
-// brick further trading), then undelegate the trader accounts and withdraw all free collateral to
-// the wallet as real USDC. Returns how many positions were closed and the amount withdrawn.
+// brick further trading), then withdraw all free collateral to the wallet as real USDC via the
+// shuttle (while still delegated), and finally undelegate the trader accounts to release the session.
+// Withdrawing BEFORE the final undelegate keeps free_collateral from being stranded on L1 (there's no
+// L1 path to pull it out — request_withdraw is ER-only). Returns positions closed and amount withdrawn.
 export async function settleAndWithdraw(
   wallet: SignerWallet,
   usdcMint: PublicKey,
@@ -537,12 +703,13 @@ export async function settleAndWithdraw(
     await closePositionER(wallet, symbol, p.slot); // ensureDelegated handles re-delegation if needed
     closed++;
   }
+  const free = (await fetchUserBalanceFrom(erConn, wallet.publicKey)) ?? 0;
+  if (free > 0) {
+    onStep?.("Withdrawing to your wallet…");
+    await withdrawViaShuttle(wallet, usdcMint, free);
+  }
   onStep?.("Settling to L1…");
-  await settleTraderToL1(wallet, symbol);
-  const free = (await fetchUserBalance(wallet.publicKey)) ?? 0;
-  if (free <= 0) return { closed, withdrawn: 0 };
-  onStep?.("Withdrawing to your wallet…");
-  await withdrawCollateral(wallet, usdcMint, free);
+  await settleTraderToL1(wallet, symbol); // release the (now ~empty) trader unit back to L1
   return { closed, withdrawn: free };
 }
 
@@ -577,8 +744,8 @@ async function redelegatePool(wallet: SignerWallet, symbol: string): Promise<voi
   const prog = program(wallet);
   const market = pda.market(symbol);
   const pool = pda.pool(market);
-  await signSendL1(wallet, [await prog.methods.delegateMarket(symbol16(symbol)).accounts({ payer: wallet.publicKey, market }).instruction()], "resume trading (market)");
-  await signSendL1(wallet, [await prog.methods.delegatePool().accounts({ payer: wallet.publicKey, market, pool }).instruction()], "resume trading (pool)");
+  await signSendL1(wallet, [await prog.methods.delegateMarket(symbol16(symbol)).accounts({ payer: wallet.publicKey, market }).remainingAccounts(validatorRemaining).instruction()], "resume trading (market)");
+  await signSendL1(wallet, [await prog.methods.delegatePool().accounts({ payer: wallet.publicKey, market, pool }).remainingAccounts(validatorRemaining).instruction()], "resume trading (pool)");
 }
 
 // LP deposit that works whether or not a session is live.

@@ -13,6 +13,20 @@ export const ENDPOINTS = {
   router: "https://devnet-router.magicblock.app",
 };
 
+// The ONE MagicBlock devnet ER validator every SHEAR account is delegated to. MagicBlock's
+// co-delegation rule requires every account an ER instruction touches to be delegated to the SAME
+// validator; open/close touch market+pool+user_balance+position, so all four must share this. It is
+// the identity behind ENDPOINTS.er (devnet.magicblock.app) and the one the shared market/pool are
+// pinned to. If delegations don't pin it, accounts land on whichever validator is default and a later
+// default change strands them -> the Magic program rejects trades with InvalidWritableAccount.
+// Override with NEXT_PUBLIC_ER_VALIDATOR if the devnet default identity ever changes.
+export const ER_VALIDATOR =
+  process.env.NEXT_PUBLIC_ER_VALIDATOR || "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57";
+
+// The MagicBlock delegation program — owns delegated accounts on the base layer and stores each
+// account's pinned validator in a delegation-record PDA (seeds ["delegation", account]).
+export const DELEGATION_PROGRAM = "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh";
+
 // MagicBlock real-time oracle feeds (devnet) - bound to the SOL-ETH market.
 export const FEEDS = {
   oracleProgram: "PriCems5tHihc6UDXDjzjeawomAwBduWMGAi8ZUjppd",

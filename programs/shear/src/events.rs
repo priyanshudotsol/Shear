@@ -21,6 +21,20 @@ pub struct CollateralWithdrawn {
     pub amount: u64,
 }
 
+/// ER: staged deposit folded into spendable free_collateral.
+#[event]
+pub struct DepositClaimed {
+    pub owner: Pubkey,
+    pub amount: u64,
+}
+
+/// ER: free_collateral debited and staged on the shuttle for L1 payout.
+#[event]
+pub struct WithdrawRequested {
+    pub owner: Pubkey,
+    pub amount: u64,
+}
+
 #[event]
 pub struct PositionModified {
     pub owner: Pubkey,

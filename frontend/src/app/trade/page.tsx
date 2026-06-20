@@ -5,7 +5,7 @@ import { TvChart } from "@/components/tv-chart";
 import { OrderPanel } from "@/components/trade/order-panel";
 import { MarketStatsBar, OpenInterest } from "@/components/trade/market-stats";
 import { PositionsPanel } from "@/components/trade/positions-panel";
-import { EventFeed } from "@/components/event-feed";
+import { ChainActivity } from "@/components/chain-activity";
 import { ErBadge } from "@/components/status-badges";
 import { PageBackdrop } from "@/components/common";
 import { Activity } from "lucide-react";
@@ -55,11 +55,11 @@ export default function TradePage() {
           <div className="border border-border bg-card/60">
             <div className="flex items-center gap-2 border-b border-border/60 px-4 py-3 text-sm">
               <Activity className="h-3.5 w-3.5 text-primary" />
-              <span className="font-semibold">Recent activity</span>
-              <span className="text-xs text-muted-foreground">· all traders</span>
+              <span className="font-semibold">On-chain activity</span>
+              <span className="text-xs text-muted-foreground">· live · click any row to verify</span>
             </div>
             <div className="p-2">
-              <EventFeed limit={12} />
+              <ChainActivity />
             </div>
           </div>
         </div>
